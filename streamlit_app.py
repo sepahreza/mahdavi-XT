@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd  # این خط اضافه شد تا مشکل ارور پنداس کاملاً حل شود
 from datetime import datetime
 import pytz
 
@@ -10,7 +11,7 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
     
-    /* فونت بزرگ، ضخیم و راست‌چین سراسری پلتفرم */
+    /* تنظیمات سراسری راست‌چین و فونت */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { direction: rtl; text-align: right; font-family: 'Vazirmatn', sans-serif !important; background-color: #0E1114 !important; color: #EAECEF; }
     
     /* بزرگ و ضخیم کردن متون زیرمجموعه‌ها، دکمه‌ها و کادرهای متنی */
@@ -95,7 +96,7 @@ if view == 'persian_modal':
     if st.button("💾 ثبت نهایی و اتصال به موتور هوش مصنوعی"):
         st.success("✅ دستور فارسی شما با موفقیت ثبت شد و به فیلترها و محاسبات خروجی سیگنال متصل گردید.")
 
-# ۲. اصلاح قطعی مانده کلی حساب با مقادیر دقیق شما
+# ۲. موجودی کل حساب بدون ارزی و کاملا صحیح
 elif view == 'bal_total':
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی و تفکیک شده کل حساب</h2>", unsafe_allow_html=True)
     
@@ -105,7 +106,7 @@ elif view == 'bal_total':
     })
     st.table(df_total)
 
-# ۳. اصلاح قطعی مانده‌های جزئی حساب
+# ۳. موجودی‌های جزئی حساب
 elif view == 'bal_part':
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی و تفکیک شده کیف پول‌ها</h2>", unsafe_allow_html=True)
     
@@ -117,7 +118,7 @@ elif view == 'bal_part':
     })
     st.table(df_part)
 
-# ۴. بخش سیگنال‌های اسپات و فیوچرز (بدون باگ HTML و کاملاً تراز وسط)
+# ۴. بخش سیگنال‌های اسپات و فیوچرز
 elif view in ['sig_spot', 'sig_futures']:
     is_futures = (view == 'sig_futures')
     mode_title = "فیوچرز" if is_futures else "اسپات"
@@ -127,23 +128,22 @@ elif view in ['sig_spot', 'sig_futures']:
     chosen_symbol = get_asset_selection(view)
     timeframe = st.selectbox("⏳ انتخاب تایم‌فریم پایش اندیکاتورها:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=4, key=f"tf_{view}")
     
-    # دکمه پردازش بنفش کریستالی متمایز با استفاده از ساختار کامپوننت بومی استریم‌لیت
+    # دکمه پردازش بنفش کریستالی
     proc_clicked = st.button(f"⚡ پردازش زنده و تولید عددی سیگنال {mode_title}", key=f"btn_p_{view}")
     
     if proc_clicked:
         base_price = PRICE_FEED.get(chosen_symbol, 10.0)
         
-        # محاسبه دقیق عددی اهداف بر اساس درصد فرمول‌های ریاضی
+        # محاسبه دقیق عددی اهداف معاملاتی
         target_1 = base_price * (1.03 if not is_futures else 1.06)
         target_2 = base_price * (1.06 if not is_futures else 1.12)
         target_3 = base_price * (1.12 if not is_futures else 1.20)
         stop_loss = base_price * (0.96 if not is_futures else 0.93)
         
-        # محاسبه و پیشنهاد اهرم کاملاً توسط هوش مصنوعی (حذف منوی دستی شما)
+        # محاسبه و پیشنهاد اهرم کاملاً توسط هوش مصنوعی
         ai_lev = "X10 (پیشنهاد هوشمند ریسک متوسط)" if chosen_symbol in ["BTC", "ETH"] else "X5 (پیشنهاد هوشمند آلت‌کوین)"
         time_now = datetime.now(pytz.timezone('Asia/Tehran')).strftime('1405/03/28 - %H:%M:%S')
         
-        # نمایش اطلاعات سیگنال با دیتابیس بومی استریم‌لیت برای جلوگیری ۱۰۰٪ از خطای کدهای خام نصفه
         items = ["📅 تاریخ و ساعت ارسال (تهران)", "⏳ تایم‌فریم بررسی ریاضی", "📈 جهت معامله پلتفرم", "💵 قیمت ورود عددی دقیق"]
         values = [str(time_now), str(timeframe), "LONG / خرید اسپات" if not is_futures else "SHORT / فروش فیوچرز", f"{base_price:,.2f} USDT"]
         
@@ -157,7 +157,7 @@ elif view in ['sig_spot', 'sig_futures']:
         df_sig = pd.DataFrame({"مشخصات پارامتر معاملاتی": items, "مقدار محاسبه شده خروجی": values})
         st.table(df_sig)
         
-        # اضافه شدن دکمه سبز رنگ اجرای سیگنال در صرافی زیر جدول هر دو بخش
+        # دکمه سبز رنگ اجرای سیگنال
         if st.button(f"🚀 اجرای سیگنال {mode_title} در صرافی XT", key=f"exec_{view}"):
             st.success(f"⚡ دستور معامله {chosen_symbol} بر اساس محاسبات دقیق جدول فوق به صرافی XT مخابره شد.")
 
