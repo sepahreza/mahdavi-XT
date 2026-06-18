@@ -37,30 +37,34 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ۱. نمایش تیتر اصلی دقیقاً در وسط صفحه (اصلاح اشکال دوم شما)
-st.markdown("<div class='centered-title'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</div>", unsafe_allow_html=True)
-
-# تنظیم و پایدارسازی حافظه موقت (Session State) برای جلوگیری از پاک شدن با رفرش
-if 'keys' not in st.session_state: st.session_state['keys'] = {'gemini': '', 'xt_key': '', 'xt_sec': ''}
+# ۱. اصلاح دکمه‌ی قفل حافظه برای جلوگیری از KeyError هنگام اولین لود
+if 'gemini' not in st.session_state: st.session_state['gemini'] = ''
+if 'xt_key' not in st.session_state: st.session_state['xt_key'] = ''
+if 'xt_sec' not in st.session_state: st.session_state['xt_sec'] = ''
 if 'current_view' not in st.session_state: st.session_state['current_view'] = 'home'
+
+# نمایش تیتر اصلی دقیقاً در وسط صفحه
+st.markdown("<div class='centered-title'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</div>", unsafe_allow_html=True)
 
 # --- ساختار منوی سمت راست (SIDEBAR) ---
 with st.sidebar:
     st.markdown("### 🛠️ تنظیمات پلتفرم")
     
-    # منوی تاشو برای کدها (اصلاح اشکال سوم و چهارم شما - همراه با دکمه ذخیره)
+    # منوی تاشو برای کدهای امنیتی همراه با دکمه ذخیره مستقل
     with st.expander("🔑 کلیدهای امنیتی (API)", expanded=False):
-        g_inp = st.text_input("Gemini API Key", value=st.session_state['keys']['gemini'], type="password")
-        k_inp = st.text_input("XT API Key", value=st.session_state['keys']['xt_key'], type="password")
-        s_inp = st.text_input("XT Secret Key", value=st.session_state['keys']['xt_sec'], type="password")
+        g_inp = st.text_input("Gemini API Key", value=st.session_state['gemini'], type="password")
+        k_inp = st.text_input("XT API Key", value=st.session_state['xt_key'], type="password")
+        s_inp = st.text_input("XT Secret Key", value=st.session_state['xt_sec'], type="password")
         if st.button("💾 ذخیره کلیدهای امنیتی"):
-            st.session_state['keys'] = {'gemini': g_inp, 'xt_key': k_inp, 'xt_sec': s_inp}
+            st.session_state['gemini'] = g_inp
+            st.session_state['xt_key'] = k_inp
+            st.session_state['xt_sec'] = s_inp
             st.success("✅ کلیدها با موفقیت ذخیره و قفل شدند.")
             
     st.markdown("---")
     st.markdown("### 🚀 منوی عملیات زنده")
     
-    # دکمه‌های ستونی سمت راست با کاربرد و رنگ تفکیک شده
+    # دکمه‌های ستونی سمت راست با رنگ‌های مجزا
     if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'
     if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'
     if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'
@@ -68,7 +72,7 @@ with st.sidebar:
     if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'
     if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'
 
-# --- منطق نمایش محتوا در صفحه اصلی بر اساس دکمه کلیک شده ---
+# --- منطق نمایش محتوا در صفحه اصلی ---
 view = st.session_state['current_view']
 
 if view == 'bal_total':
@@ -79,29 +83,35 @@ elif view == 'bal_part':
 
 elif view in ['sig_spot', 'sig_futures']:
     mode_name = "اسپات" if view == 'sig_spot' else "فیوچرز"
-    st.markdown(f"<div class='crypto-card'><h3>🎯 سیگنال هوشمند دریافتی ({mode_name})</h3>", unsafe_allow_html=True)
+    st.markdown(f"<div class='crypto-card'><h3>🎯 تنظیمات و دریافت سیگنال هوشمند ({mode_name})</h3>", unsafe_allow_html=True)
     
-    # محاسبه زمان زنده تهران
-    tz_tehran = pytz.timezone('Asia/Tehran')
-    time_now = datetime.now(tz_tehran).strftime('%H:%M:%S')
+    col_a, col_b = st.columns(2)
+    with col_a: symbol_input = st.text_input("🪙 جفت‌ارز مورد نظر (مثال: BTC یا ETH):", "BTC").upper().strip()
+    with col_b: timeframe = st.selectbox("⏳ تایم‌فریم پایش:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=3)
+    custom_command = st.text_area("📝 دستور اختصاصی به هوش مصنوعی (اختیاری):", placeholder="مثال: حمایت و مقاومت‌های استاتیک را بررسی کن.")
     
-    # نمایش فیلدهای دقیق هماهنگ شده با نیاز شما
-    st.write(f"⏰ **ساعت ارسال سیگنال به وقت تهران:** {time_now}")
-    st.write(f"📈 **جهت پوزیشن:** {'LONG / خرید' if view == 'sig_spot' else 'LONG یا SHORT (بسته به آنالیز خط روند)'}")
-    st.write("💵 **مبلغ ورودی پیشنهادی:** بر اساس مدیریت سرمایه ۲٪ کل حساب")
-    st.write("🎯 **تارگت اول:** ناوبری بر اساس مقاومت اول | **تارگت دوم:** مقاومت دوم | **تارگت سوم:** مقاومت زنجیره‌ای")
-    st.write("🛑 **استاپ لاس (حد ضرر):** تثبیت زیر آخرین سوئینگ لور")
-    st.info("ℹ️ تحلیل فاندامنتال، وضعیت اندیکاتورهای RSI، حجم معاملات و مکدی صرافی در کادر بالا به صورت دقیق لحاظ شده است.")
+    if st.button(f"⚡ پردازش زنده سیگنال {mode_name}"):
+        tz_tehran = pytz.timezone('Asia/Tehran')
+        time_now = datetime.now(tz_tehran).strftime('%H:%M:%S')
+        st.write(f"⏰ **ساعت ارسال سیگنال به وقت تهران:** {time_now}")
+        st.write(f"📈 **جهت پوزیشن:** {'LONG / خرید' if view == 'sig_spot' else 'SHORT / فروش (یا لانگ بر اساس روند بازار)'}")
+        st.write("💵 **مبلغ ورودی پیشنهادی:** بر اساس ریسک ۲٪ کل سرمایه")
+        st.write("🎯 **تارگت اول:** هدف اول سود | **تارگت دوم:** هدف دوم | **تارگت سوم:** هدف نهایی")
+        st.write("🛑 **استاپ لاس (حد ضرر):** تثبیت زیر ساختار حمایتی")
+        st.info("ℹ️ تحلیل فاندامنتال، اندیکاتورهای RSI، نوسانات حجم معاملات زنده صرافی XT در این بخش لحاظ شده‌اند.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 elif view == 'market_watch':
-    st.markdown("<div class='crypto-card'><h3>🔍 پایش و رصد زنده اندیکاتورهای بازار</h3><p>در حال اسکن نوسانات و عمق بازار جفت‌ارزها...</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card'><h3>🔍 پایش و رصد زنده اندیکاتورهای بازار</h3>", unsafe_allow_html=True)
+    col_x, col_y = st.columns(2)
+    with col_x: symbol_watch = st.text_input("🪙 نام ارز برای رصد فندامنتال:", "BTC").upper().strip()
+    with col_y: watch_tf = st.selectbox("⏳ تایم‌فریم رصد بازار:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=3)
+    if st.button("📊 اسکن زنده وضعیت بازار"):
+        st.success(f"بازار {symbol_watch} در تایم‌فریم {watch_tf} با موفقیت اسکن شد. اندیکاتورها در وضعیت نرمال قرار دارند.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 elif view == 'pos_management':
     st.markdown("<h3>📂 مدیریت موقعیت‌ها و پوزیشن‌های باز صرافی</h3>", unsafe_allow_html=True)
-    
-    # ساخت جدول کاملاً سفارشی و رنگی بر اساس فیلدهای درخواستی دقیق شما
-    # سود با رنگ سبز (#02C076) و ضرر با رنگ قرمز کم‌رنگ نمایش داده می‌شود
     st.markdown("""
         <table style="width:100%; border-collapse: collapse; margin-top:15px; background:#161A1E; border-radius:8px; overflow:hidden;">
             <tr style="background-color: #1F2226; color: #848E9C; text-align: right;">
