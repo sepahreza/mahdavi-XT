@@ -1,3 +1,5 @@
-google-generativeai
+streamlit
 ccxt
 pandas
+google-generativeai
+pytz
