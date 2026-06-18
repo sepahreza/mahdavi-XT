@@ -24,9 +24,9 @@ st.markdown("""
     .btn-spot>button { background: linear-gradient(135deg, #02C076 0%, #018F57 100%) !important; color: white !important; }
     .btn-futures>button { background: linear-gradient(135deg, #CD2026 0%, #A11318 100%) !important; color: white !important; }
     .card { background-color: #161A1E; padding: 20px; border-radius: 12px; border: 1px solid #2B3139; margin-bottom: 15px; }
-    .crypto-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .crypto-table { width: 100%; border-collapse: collapse; margin-top: 15px; direction: rtl; }
     .crypto-table th { background-color: #1F2226; color: #848E9C; text-align: right; padding: 12px; font-size: 14px; }
-    .crypto-table td { padding: 12px; border-bottom: 1px solid #2B3139; font-size: 15px; }
+    .crypto-table td { padding: 12px; border-bottom: 1px solid #2B3139; font-size: 15px; text-align: right; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -184,15 +184,17 @@ if btn_positions:
             else:
                 html_table = "<table class='crypto-table'><tr><th>نماد ارز</th><th>نوع پوزیشن</th><th>حجم معامله</th><th>قیمت ورود</th><th>سود / زیان (PnL)</th></tr>"
                 for pos in active_positions:
-                    side_color = "#02C076" if pos['side'] == 'long' else #CD2026
-                    pnl_color = "#02C076" if float(pos.get('unrealizedPnl', 0)) >= 0 else #CD2026
+                    # رفع خطای سینتکس با قرار دادن کوتیشن برای مقادیر رنگ‌ها
+                    side_color = "#02C076" if pos['side'] == 'long' else "#CD2026"
+                    pnl_val = float(pos.get('unrealizedPnl', 0))
+                    pnl_color = "#02C076" if pnl_val >= 0 else "#CD2026"
                     html_table += f"""
                     <tr>
                         <td style='font-weight: bold;'>{pos['symbol']}</td>
                         <td style='color: {side_color}; font-weight: bold;'>{pos['side'].upper()}</td>
                         <td>{pos['contracts']}</td>
                         <td>{pos['entryPrice']} USDT</td>
-                        <td style='color: {pnl_color}; font-weight: bold;'>{pos.get('unrealizedPnl', '0.00')} USDT</td>
+                        <td style='color: {pnl_color}; font-weight: bold;'>{pnl_val:.2f} USDT</td>
                     </tr>
                     """
                 html_table += "</table>"
@@ -219,7 +221,7 @@ if st.session_state['last_signal']:
     if btn_exec:
         try:
             exchange = get_xt_instance()
-            # ارسال سفارش مارکت (قیمت لحظه‌ای) برای سرعت بالا بر اساس حداقل حجم مجاز صرافی
+            # ارسال سفارش مارکت (قیمت لحظه‌ای) بر اساس حداقل حجم مجاز
             order = exchange.create_market_buy_order(sig['symbol'], 0.001) if sig['mode'] == 'Spot' else exchange.create_market_order(sig['symbol'], 'buy', 0.001)
             st.success(f"✅ سیگنال با موفقیت روی قیمت بازار اجرا شد! شناسه سفارش: {order['id']}")
         except Exception as e:
@@ -229,7 +231,7 @@ if st.session_state['last_signal']:
         try:
             exchange = get_xt_instance()
             order = exchange.create_market_sell_order(sig['symbol'], 0.001)
-            st.success(f"🛑 دستور بستن پوزیشن/فروش ارز با موفقیت به صرافی XT ارسال شد. شناسه: {order['id']}")
+            st.success(f"🛑 دستور بستن پوزیشن با موفقیت به صرافی XT ارسال شد. شناسه: {order['id']}")
         except Exception as e:
             st.error(f"❌ خطا در بستن پوزیشن: {e}")
             
