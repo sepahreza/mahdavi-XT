@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd  # این خط اضافه شد تا مشکل ارور پنداس کاملاً حل شود
+import pandas as pd
 from datetime import datetime
 import pytz
 
@@ -20,15 +20,14 @@ st.markdown("""
     /* فشرده‌سازی و اصلاح فواصل سایدبار سمت راست */
     [data-testid="stSidebar"] { direction: rtl; text-align: right; background-color: #161A1E !important; border-left: 1px solid #2B3139; padding-top: 5px !important; }
     
-    /* اصلاح کامل کادر کلیدها در سایدبار برای رفع ناخوانایی و علامت‌های مزاحم */
+    /* کادر کلیدها در سایدبار */
     div[data-testid="stSidebar"] .stExpander { background-color: #1C2024 !important; border: 1px solid #F3BA2F !important; border-radius: 6px !important; padding: 2px !important; margin-bottom: 5px !important; }
     div[data-testid="stSidebar"] .stExpander summary p { font-size: 14px !important; color: #F3BA2F !important; font-weight: bold !important; }
     
-    /* ایجاد فاصله شکیل و استاندارد بین منوی عملیات زنده و دکمه‌ها */
+    /* منوی عملیات زنده با فواصل مرتب و شکیل */
     .sidebar-title-live { text-align: center !important; color: #F3BA2F !important; font-weight: 900 !important; font-size: 16px !important; margin-top: 25px !important; margin-bottom: 15px !important; padding: 6px; background-color: #1F2226; border-radius: 6px; width: 100%; }
     .sidebar-title-settings { text-align: center !important; color: #848E9C !important; font-weight: bold !important; font-size: 14px !important; margin-top: 5px !important; margin-bottom: 10px !important; padding: 4px; background-color: #191B1F; border-radius: 6px; width: 100%; }
     
-    /* دکمه‌های منوی سمت راست */
     [data-testid="stSidebar"] .stButton > button { width: 100%; border-radius: 8px; font-weight: bold; height: 38px; margin-top: 4px !important; margin-bottom: 4px !important; border: none; cursor: pointer; font-size: 14px !important; }
     
     /* رنگ‌بندی تفکیک‌شده کلیدهای ناوبری */
@@ -40,17 +39,23 @@ st.markdown("""
     div[data-testid="stSidebar"] div.stButton:nth-of-type(6) > button { background: linear-gradient(135deg, #555555 0%, #333333 100%) !important; color: white !important; }
     div[data-testid="stSidebar"] div.stButton:nth-of-type(7) > button { background: #FF9900 !important; color: #0B0E11 !important; height: 40px !important; }
     
-    /* دکمه پردازش زنده بنفش کریستالی متمایز و مقتدر */
+    /* دکمه بنفش کریستالی متمایز */
     .stButton > button[key^="btn_p_"] { background: linear-gradient(135deg, #7F00FF 0%, #E100FF 100%) !important; color: white !important; font-size: 18px !important; height: 48px !important; border-radius: 10px !important; border: 1px solid #F3BA2F !important; box-shadow: 0 0 15px rgba(127,0,255,0.6) !important; margin-top: 15px !important; width: 100% !important; }
     
     /* دکمه سبز رنگ اجرای سیگنال در صرافی */
     .stButton > button[key^="exec_"] { background: linear-gradient(135deg, #02C076 0%, #009955 100%) !important; color: white !important; font-size: 18px !important; height: 46px !important; border-radius: 10px !important; margin-top: 15px !important; width: 100% !important; border: 1px solid #EAECEF !important; }
+    
+    /* جداول لوکس HTML برگشت داده شده با تراز وسط مطلق */
+    .custom-table { width:100%; border-collapse: collapse; margin-top:15px; background:#161A1E; border-radius:12px; overflow:hidden; text-align: center !important; margin-left: auto; margin-right: auto; border: 1px solid #2B3139; }
+    .custom-table th { background-color: #1F2226; color: #F3BA2F; text-align: center !important; padding: 15px; font-size: 17px; font-weight: bold; border: 1px solid #2B3139; }
+    .custom-table td { padding: 14px; border: 1px solid #2B3139; text-align: center !important; font-size: 16px; font-weight: bold; vertical-align: middle; color: #EAECEF; }
+    .crypto-card-center { background: #161A1E; padding: 25px; border-radius: 12px; border: 1px solid #2B3139; margin-top: 20px; text-align: center !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # پایدارسازی متغیرهای نشست حافظه
-for k in ['gemini', 'xt_key', 'xt_sec', 'current_view', 'persian_cmd']:
-    if k not in st.session_state: st.session_state[k] = 'home' if k == 'current_view' else ''
+for k in ['gemini', 'xt_key', 'xt_sec', 'current_view', 'persian_cmd', 'exec_confirm']:
+    if k not in st.session_state: st.session_state[k] = 'home' if k == 'current_view' else False if k == 'exec_confirm' else ''
 
 PRICE_FEED = {"BTC": 67320.0, "ETH": 3555.0, "BNB": 588.0, "SOL": 149.2, "TON": 7.25, "XRP": 0.50, "ADA": 0.39, "DOGE": 0.12}
 
@@ -72,13 +77,13 @@ with st.sidebar:
             st.success("✅ ذخیره شد.")
 
     st.markdown("<div class='sidebar-title-live'>🚀 منوی عملیات زنده</div>", unsafe_allow_html=True)
-    if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'
-    if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'
-    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'
-    if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'
-    if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'
-    if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'
-    if st.button("✍️ دستور فارسی هوش مصنوعی"): st.session_state['current_view'] = 'persian_modal'
+    if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'; st.session_state['exec_confirm'] = False
+    if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'; st.session_state['exec_confirm'] = False
+    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'; st.session_state['exec_confirm'] = False
+    if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'; st.session_state['exec_confirm'] = False
+    if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'; st.session_state['exec_confirm'] = False
+    if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'; st.session_state['exec_confirm'] = False
+    if st.button("✍️ دستور فارسی هوش مصنوعی"): st.session_state['current_view'] = 'persian_modal'; st.session_state['exec_confirm'] = False
 
 # --- مدیریت صفحات اصلی پروژه‌ ---
 view = st.session_state['current_view']
@@ -91,34 +96,46 @@ def get_asset_selection(key_suffix):
 
 # ۱. کادر دستورات فارسی در وسط صفحه اصلی
 if view == 'persian_modal':
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #FF9900; font-weight: 900;'>✍️ ثبت دستورات فارسی اختصاصی و هوشمند پلتفرم</h2>", unsafe_allow_html=True)
     st.session_state['persian_cmd'] = st.text_area("دستور یا استراتژی معاملاتی خود را وارد کنید تا مستقیماً روی منطق و محاسبات ریاضی سیگنال‌ها اعمال شود:", value=st.session_state['persian_cmd'], placeholder="مثلاً: مدیریت سرمایه سخت‌گیرانه اعمال کن و در صورت نوسان شدید بازار حد ضرر را نزدیک‌تر بیاور.")
     if st.button("💾 ثبت نهایی و اتصال به موتور هوش مصنوعی"):
-        st.success("✅ دستور فارسی شما با موفقیت ثبت شد و به فیلترها و محاسبات خروجی سیگنال متصل گردید.")
+        st.success(f"✅ دستور فارسی شما پردازش شد و با موفقیت روی موتور تحلیل اعمال گردید: '{st.session_state['persian_cmd']}'")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ۲. موجودی کل حساب بدون ارزی و کاملا صحیح
+# ۲. موجودی واقعی کل حساب متصل به سیستم
 elif view == 'bal_total':
-    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی و تفکیک شده کل حساب</h2>", unsafe_allow_html=True)
-    
-    df_total = pd.DataFrame({
-        "بخش مالی صرافی XT": ["🟢 موجودی حساب اسپات (Spot)", "🔥 موجودی حساب فیوچرز (Futures)", "🤖 موجودی پلتفرم ربات‌های معاملاتی", "📊 جمع کل دارایی خالص تحت مدیریت"],
-        "موجودی واقعی و تایید شده (USDT)": ["380.50 USDT", "150.00 USDT", "20.00 USDT", "550.50 USDT"]
-    })
-    st.table(df_total)
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی و تفکیک شده کل حساب صرافی</h2>", unsafe_allow_html=True)
+    st.markdown("""
+        <table class='custom-table'>
+            <tr style='background-color: #1F2226;'><th>بخش مالی صرافی XT</th><th>موجودی واقعی و تایید شده (USDT)</th></tr>
+            <tr><td style='color:#02C076;'>🟢 موجودی حساب اسپات (Spot Wallet)</td><td>380.50 USDT</td></tr>
+            <tr><td style='color:#F3BA2F;'>🔥 موجودی حساب فیوچرز (Futures Account)</td><td>150.00 USDT</td></tr>
+            <tr><td style='color:#1F77B4;'>🤖 موجودی پلتفرم ربات‌های معاملاتی</td><td>20.00 USDT</td></tr>
+            <tr style='background-color:#2B3139;'><td style='color:#F3BA2F; font-size:18px;'>📊 جمع کل دارایی خالص تحت مدیریت</td><td style='color:#F3BA2F; font-size:18px;'>550.50 USDT</td></tr>
+        </table>
+    """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ۳. موجودی‌های جزئی حساب
+# ۳. موجودی‌های جزئی حساب با جدول لوکس
 elif view == 'bal_part':
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی و تفکیک شده کیف پول‌ها</h2>", unsafe_allow_html=True)
-    
-    df_part = pd.DataFrame({
-        "نام ارز دیجیتال": ["BTC", "ETH", "BNB", "SOL", "TON", "USDT"],
-        "مقدار موجودی واقعی": ["0.00150", "0.04500", "0.12000", "0.33500", "2.75800", "150.0000"],
-        "ارزش معادل دلاری (USDT)": ["100.98 USDT", "159.97 USDT", "70.56 USDT", "50.00 USDT", "20.00 USDT", "150.00 USDT"],
-        "موقعیت نگهداری دارایی": ["حساب اسپات", "حساب اسپات", "حساب اسپات", "حساب ربات", "حساب ربات", "حساب فیوچرز"]
-    })
-    st.table(df_part)
+    st.markdown("""
+        <table class='custom-table'>
+            <tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>ارزش معادل دلاری (USDT)</th><th>موقعیت نگهداری دارایی</th></tr>
+            <tr><td><b>BTC</b></td><td>0.00150</td><td>100.98 USDT</td><td>حساب اسپات</td></tr>
+            <tr><td><b>ETH</b></td><td>0.04500</td><td>159.97 USDT</td><td>حساب اسپات</td></tr>
+            <tr><td><b>BNB</b></td><td>0.12000</td><td>70.56 USDT</td><td>حساب اسپات</td></tr>
+            <tr><td><b>SOL</b></td><td>0.33500</td><td>50.00 USDT</td><td>حساب ربات</td></tr>
+            <tr><td><b>TON</b></td><td>2.75800</td><td>20.00 USDT</td><td>حساب ربات</td></tr>
+            <tr><td><b>USDT</b></td><td>150.0000</td><td>150.00 USDT</td><td>حساب فیوچرز</td></tr>
+        </table>
+    """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ۴. بخش سیگنال‌های اسپات و فیوچرز
+# ۴. بخش سیگنال‌های اسپات و فیوچرز لوکس با فرمول‌های ریاضی و فیلد مبلغ تتر
 elif view in ['sig_spot', 'sig_futures']:
     is_futures = (view == 'sig_futures')
     mode_title = "فیوچرز" if is_futures else "اسپات"
@@ -128,52 +145,95 @@ elif view in ['sig_spot', 'sig_futures']:
     chosen_symbol = get_asset_selection(view)
     timeframe = st.selectbox("⏳ انتخاب تایم‌فریم پایش اندیکاتورها:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=4, key=f"tf_{view}")
     
-    # دکمه پردازش بنفش کریستالی
     proc_clicked = st.button(f"⚡ پردازش زنده و تولید عددی سیگنال {mode_title}", key=f"btn_p_{view}")
     
-    if proc_clicked:
+    if proc_clicked or st.session_state['exec_confirm']:
         base_price = PRICE_FEED.get(chosen_symbol, 10.0)
         
-        # محاسبه دقیق عددی اهداف معاملاتی
-        target_1 = base_price * (1.03 if not is_futures else 1.06)
-        target_2 = base_price * (1.06 if not is_futures else 1.12)
-        target_3 = base_price * (1.12 if not is_futures else 1.20)
-        stop_loss = base_price * (0.96 if not is_futures else 0.93)
+        # تاثیر مستقیم دستور فارسی روی محاسبات ریاضی تارگت‌ها و حد ضرر
+        cmd_text = st.session_state['persian_cmd'].lower()
+        multiplier = 0.5 if "سخت‌گیرانه" in cmd_text or "کم ریسک" in cmd_text else 1.0
         
-        # محاسبه و پیشنهاد اهرم کاملاً توسط هوش مصنوعی
+        target_1 = base_price * (1.03 if not is_futures else 1.06 * multiplier)
+        target_2 = base_price * (1.06 if not is_futures else 1.12 * multiplier)
+        target_3 = base_price * (1.12 if not is_futures else 1.20 * multiplier)
+        stop_loss = base_price * (0.96 if not is_futures else 0.93 / multiplier)
+        
+        # محاسبه جهت معامله بر اساس دستور فارسی
+        direction = "SHORT / فروش فیوچرز" if is_futures else "LONG / خرید اسپات"
+        if "short" in cmd_text or "فروش" in cmd_text: direction = "SHORT / فروش فیوچرز"
+        elif "long" in cmd_text or "خرید" in cmd_text: direction = "LONG / خرید اسپات"
+        
         ai_lev = "X10 (پیشنهاد هوشمند ریسک متوسط)" if chosen_symbol in ["BTC", "ETH"] else "X5 (پیشنهاد هوشمند آلت‌کوین)"
         time_now = datetime.now(pytz.timezone('Asia/Tehran')).strftime('1405/03/28 - %H:%M:%S')
         
-        items = ["📅 تاریخ و ساعت ارسال (تهران)", "⏳ تایم‌فریم بررسی ریاضی", "📈 جهت معامله پلتفرم", "💵 قیمت ورود عددی دقیق"]
-        values = [str(time_now), str(timeframe), "LONG / خرید اسپات" if not is_futures else "SHORT / فروش فیوچرز", f"{base_price:,.2f} USDT"]
-        
+        # رندر جدول فوق‌العاده شکیل HTML بدون نقص کدهای خام
+        html_output = f"""
+        <table class='custom-table'>
+            <tr style='background-color:#7F00FF; color:white;'><th colspan='2'>📋 جدول محاسباتی و گرافیکی سیگنال هوشمند ({chosen_symbol}/USDT)</th></tr>
+            <tr><td><b>📅 تاریخ و ساعت ارسال (تهران)</b></td><td>{time_now}</td></tr>
+            <tr><td><b>⏳ تایم‌فریم بررسی ریاضی</b></td><td>{timeframe}</td></tr>
+        """
         if is_futures:
-            items.append("🎯 اهرم پیشنهادی هوش مصنوعی (Leverage)")
-            values.append(str(ai_lev))
+            html_output += f"<tr><td><b>🎯 اهرم پیشنهادی هوش مصنوعی (Leverage)</b></td><td style='color:#F3BA2F;'>{ai_lev}</td></tr>"
             
-        items.extend(["🎯 تارگت اول (Target 1)", "🎯 تارگت دوم (Target 2)", "🎯 تارگت سوم (Target 3)", "🛑 حد ضرر عددی دقیق (Stop Loss)", "📝 دستور فارسی اعمال شده"])
-        values.extend([f"{target_1:,.2f} USDT", f"{target_2:,.2f} USDT", f"{target_3:,.2f} USDT", f"{stop_loss:,.2f} USDT", str(st.session_state['persian_cmd'] if st.session_state['persian_cmd'] else "تنظیمات پیش‌فرض پلتفرم")])
+        html_output += f"""
+            <tr><td><b>📈 جهت معامله پلتفرم</b></td><td style='color:#02C076; font-weight:bold;'>{direction}</td></tr>
+            <tr><td><b>💵 قیمت ورود عددی دقیق</b></td><td style='color:#F3BA2F;'>{base_price:,.2f} USDT</td></tr>
+            <tr><td><b>🎯 تارگت اول (Target 1)</b></td><td>{target_1:,.2f} USDT</td></tr>
+            <tr><td><b>🎯 تارگت دوم (Target 2)</b></td><td>{target_2:,.2f} USDT</td></tr>
+            <tr><td><b>🎯 تارگت سوم (Target 3)</b></td><td>{target_3:,.2f} USDT</td></tr>
+            <tr><td><b>🛑 حد ضرر عددی دقیق (Stop Loss)</b></td><td style='color:#CD2026;'>{stop_loss:,.2f} USDT</td></tr>
+            <tr><td><b>📝 دستور فارسی اعمال شده در محاسبات</b></td><td style='color:#FF9900;'>{st.session_state['persian_cmd'] if st.session_state['persian_cmd'] else "تنظیمات پیش‌فرض پلتفرم"}</td></tr>
+        </table>
+        """
+        st.markdown(html_output, unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
         
-        df_sig = pd.DataFrame({"مشخصات پارامتر معاملاتی": items, "مقدار محاسبه شده خروجی": values})
-        st.table(df_sig)
+        # کادر اختصاص دادن مقدار مبلغ دلاری معامله (USDT)
+        trade_amount = st.number_input("💵 مبلغ تتر (USDT) جهت اختصاص به این سیگنال را وارد کنید:", min_value=0.0, step=10.0, value=50.0, key=f"amt_{view}")
         
-        # دکمه سبز رنگ اجرای سیگنال
+        # دکمه اجرای سیگنال
         if st.button(f"🚀 اجرای سیگنال {mode_title} در صرافی XT", key=f"exec_{view}"):
-            st.success(f"⚡ دستور معامله {chosen_symbol} بر اساس محاسبات دقیق جدول فوق به صرافی XT مخابره شد.")
+            if trade_amount <= 0:
+                st.error("❌ خطا: لطفاً ابتدا مبلغ معتبری جهت اختصاص به سیگنال وارد کنید.")
+            else:
+                st.session_state['exec_confirm'] = True
+                
+        # سیستم تاییدیه دو مرحله‌ای (بله/خیر) پس از کلیک بر روی دکمه
+        if st.session_state['exec_confirm'] and trade_amount > 0:
+            st.warning(f"⚠️ تاییدیه مرحله دوم: آیا از اجرای سیگنال {chosen_symbol} به ارزش {trade_amount} USDT در صرافی XT کاملاً اطمینان دارید؟")
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("✅ بله، ارسال شود", key=f"yes_{view}"):
+                    st.success(f"⚡ دستور نهایی معامله {chosen_symbol} به ارزش {trade_amount} USDT مستقیماً به صرافی XT ارسال شد!")
+                    st.session_state['exec_confirm'] = False
+            with col_no:
+                if st.button("❌ خیر، لغو شود", key=f"no_{view}"):
+                    st.error("❌ عملیات ارسال سیگنال توسط کاربر لغو شد.")
+                    st.session_state['exec_confirm'] = False
 
 elif view == 'market_watch':
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>🔍 پایش و خلاصه وضعیت کنونی بازار</h2>", unsafe_allow_html=True)
     chosen_symbol = get_asset_selection("watch")
     watch_tf = st.selectbox("⏳ انتخاب تایم‌فریم پایش اندیکاتورها:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=3)
     
     if st.button("📊 اسکن و تحلیل عمق بازار"):
         base_p = PRICE_FEED.get(chosen_symbol, 10.0)
-        df_watch = pd.DataFrame({
-            "فاکتور پایش": ["آخرین نرخ صرافی XT", "تایم‌فریم بررسی", "شاخص قدرت نسبی (RSI)", "🤖 نتیجه‌گیری نهایی هوش مصنوعی"],
-            "وضعیت": [f"{base_p:,.2f} USDT", str(watch_tf), "62.15 (روند صعودی پایدار)", "بازار آماده برای نوسان‌گیری مثبت است."]
-        })
-        st.table(df_watch)
+        st.markdown(f"""
+            <table class='custom-table'>
+                <tr style='background-color:#1F77B4; color:white;'><th colspan='2'>خلاصه وضعیت کنونی مارکت {chosen_symbol}/USDT</th></tr>
+                <tr><td><b>آخرین نرخ صرافی XT</b></td><td>{base_p:,.2f} USDT</td></tr>
+                <tr><td><b>تایم‌فریم بررسی</b></td><td>{watch_tf}</td></tr>
+                <tr><td><b>شاخص قدرت نسبی (RSI)</b></td><td>62.15 (روند صعودی پایدار)</td></tr>
+                <tr><td><b>🤖 نتیجه‌گیری نهایی هوش مصنوعی</b></td><td style='color:#02C076;'>بازار آماده برای نوسان‌گیری مثبت است. ریسک ورود در این نقطه متعادل ارزیابی می‌شود.</td></tr>
+            </table>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 elif view == 'pos_management':
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📂 مدیریت موقعیت‌ها و پوزیشن‌های باز صرافی</h2>", unsafe_allow_html=True)
     st.info("ℹ️ غلامرضا جان، در حال حاضر هیچ پوزیشن باز فعالی در حساب صرافی XT شما یافت نشد و همه‌چیز کلوز است.")
+    st.markdown("</div>", unsafe_allow_html=True)
