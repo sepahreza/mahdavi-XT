@@ -1,5 +1,5 @@
 import streamlit as st
-import google.genai as genai
+import google.generativeai as genai
 import ccxt
 import pandas as pd
 
@@ -15,7 +15,7 @@ st.markdown("""
         width: 100%; border-radius: 8px; font-size: 18px; height: 50px;
     }
     </style>
-""", unsafe_allow_index=True)
+""", unsafe_allow_html=True)
 
 st.title("🪐 اتاق فرمان و صدور سیگنال")
 
@@ -44,7 +44,7 @@ if st.button("🚀 دریافت سیگنال و تحلیل زنده"):
         with st.spinner("⏳ در حال استخراج دیتای زنده صرافی XT و تحلیل هوش مصنوعی..."):
             try:
                 exchange = ccxt.xt({'apiKey': XT_API_KEY, 'secret': XT_SECRET_KEY, 'enableRateLimit': True})
-                client = genai.Client(api_key=GEMINI_API_KEY)
+                genai.configure(api_key=GEMINI_API_KEY)
                 
                 ticker = exchange.fetch_ticker('BTC/USDT')
                 ohlcv = exchange.fetch_ohlcv('BTC/USDT', timeframe='1h', limit=50)
@@ -76,7 +76,8 @@ if st.button("🚀 دریافت سیگنال و تحلیل زنده"):
                 )
                 
                 final_prompt = f"{system_instruction}\n\n{btc_intelligence}\n\nسوال کاربر: {User_Command}"
-                response = client.models.generate_content(model='gemini-2.5-flash', contents=final_prompt)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                response = model.generate_content(final_prompt)
                 
                 formatted_text = response.text.replace("\n", "<br>")
                 st.markdown(f"""

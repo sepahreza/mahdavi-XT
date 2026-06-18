@@ -1,2 +1,3 @@
-streamlitgoogle-genai
+google-generativeai
 ccxt
+pandas
