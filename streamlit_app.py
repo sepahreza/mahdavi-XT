@@ -76,7 +76,7 @@ if st.button("🚀 دریافت سیگنال و تحلیل زنده"):
                 )
                 
                 final_prompt = f"{system_instruction}\n\n{btc_intelligence}\n\nسوال کاربر: {User_Command}"
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(final_prompt)
                 
                 formatted_text = response.text.replace("\n", "<br>")
