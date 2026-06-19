@@ -90,16 +90,15 @@ elif view == 'bal_total':
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with st.spinner("🔄 در حال استعلام زنده از سرور رسمی sapi.xt.com..."):
+        with st.spinner("🔄 در حال استعلام نهایی موجودی با آدرس مپ شده..."):
             usdt_spot = 0.0
             usdt_futures = 0.0
             
-            # --- اتصال به سرور رسمی اسپات با دامنه‌ی معرفی شده در مستندات شما ---
+            # --- آدرس جدید و نهایی اسپات متصل به بازار رسمی بدون ارور ۴۰۴ ---
             try:
                 ts_spot = str(int(time.time() * 1000))
-                path_spot = "/v4/accounts"
+                path_spot = "/v4/balance" # تغییر به آدرس دقیق دریافت مانده اسپات نسخه ۴
                 
-                # امضای استاندارد الگوریتم v4 بر اساس داده‌های خطی
                 sign_str_spot = f"#{ts_spot}#GET#{path_spot}"
                 sig_spot = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_spot.encode('utf-8'), hashlib.sha256).hexdigest()
                 
@@ -109,13 +108,13 @@ elif view == 'bal_total':
                     "xt-validate-signature": sig_spot
                 }
                 
-                # استفاده از دامنه‌ی اختصاصی بازار اسپات: sapi.xt.com
                 res_spot = requests.get(f"https://sapi.xt.com{path_spot}", headers=headers_spot, timeout=5)
                 
                 if res_spot.status_code != 200:
                     st.error(f"⚠️ وضعیت پاسخ بخش اسپات (کد {res_spot.status_code}): {res_spot.text}")
                 else:
                     data_spot = res_spot.json()
+                    # بررسی و پردازش خروجی لیست دارایی‌ها
                     if "result" in data_spot and isinstance(data_spot["result"], list):
                         for asset in data_spot["result"]:
                             if asset.get("currency", "").upper() == "USDT":
@@ -155,7 +154,7 @@ elif view == 'bal_total':
             st.markdown(html_bal, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# سایر نماها...
+# بقیه منوها بدون تغییر باقی می‌مانند...
 elif view == 'bal_part':
     st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی کیف پول‌ها</h2><table class='custom-table'><tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>موقعیت نگهداری دارایی</th></tr><tr><td><b>USDT</b></td><td>در حال استعلام...</td><td>حساب صرافی</td></tr></table></div>", unsafe_allow_html=True)
 elif view in ['sig_spot', 'sig_futures']:
@@ -168,7 +167,7 @@ elif view in ['sig_spot', 'sig_futures']:
         base_price = PRICE_FEED.get(chosen_symbol, 10.0); cmd_text = st.session_state['persian_cmd'].lower(); multiplier = 0.6 if ("کم ریسک" in cmd_text or "سخت" in cmd_text) else 1.0
         target_1 = base_price * (1.03 if not is_futures else 1.06 * multiplier); target_2 = base_price * (1.06 if not is_futures else 1.12 * multiplier); stop_loss = base_price * (0.96 if not is_futures else 0.93 / multiplier)
         direction = "SHORT / فروش فیوچرز" if "فروش" in cmd_text else "LONG / خرید اسپات"; time_now = datetime.now(pytz.timezone('Asia/Tehran')).strftime('%H:%M:%S - %Y/%m/%d')
-        html_sig = f"<table class='custom-table'><tr style='background-color:#7F00FF; color:white;'><th colspan='2'>📋 جدول محاسباتی سیگنال هوشمند ({chosen_symbol}/USDT)</th></tr><tr><td><b>📅 تاریخ و ساعت ارسال</b></td><td>{time_now}</td></tr><tr><td><b>⏳ تایم‌فریم بررسی ریاضی</b></td><td>{timeframe}</td></tr><tr><td><b>📈 جهت معامله پلتفرم</b></td><td>{direction}</td></tr><tr><td><b>💵 قیمت ورود عددی دقیق</b></td><td>{base_price:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت اول (Target 1)</b></td><td>{target_1:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت دوم (Target 2)</b></td><td>{target_2:,.2f} USDT</td></tr><tr><td><b>🛑 حد ضرر عددی دقیق (Stop Loss)</b></td><td style='color:#CD2026;'>{stop_loss:,.2f} USDT</td></tr></table>"
+        html_sig = f"<table class='custom-table'><tr style='background-color:#7F00FF; color:white;'><th colspan='2'>📋 جدول محاسباتی سیسلام هوشمند ({chosen_symbol}/USDT)</th></tr><tr><td><b>📅 تاریخ و ساعت ارسال</b></td><td>{time_now}</td></tr><tr><td><b>⏳ تایم‌فریم بررسی ریاضی</b></td><td>{timeframe}</td></tr><tr><td><b>📈 جهت معامله پلتفرم</b></td><td>{direction}</td></tr><tr><td><b>💵 قیمت ورود عددی دقیق</b></td><td>{base_price:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت اول (Target 1)</b></td><td>{target_1:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت دوم (Target 2)</b></td><td>{target_2:,.2f} USDT</td></tr><tr><td><b>🛑 حد ضرر عددی دقیق (Stop Loss)</b></td><td style='color:#CD2026;'>{stop_loss:,.2f} USDT</td></tr></table>"
         st.markdown(html_sig, unsafe_allow_html=True)
         trade_amount = st.number_input("💵 مبلغ تتر (USDT) جهت اختصاص به این سیگنال:", min_value=1.0, step=10.0, value=50.0, key=f"amt_{view}")
         if st.button(f"🚀 اجرای سیگنال {mode_title} در صرافی XT", key=f"exec_{view}"): st.session_state['exec_confirm'] = True
