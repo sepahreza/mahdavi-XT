@@ -90,26 +90,27 @@ elif view == 'bal_total':
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with st.spinner("🔄 در حال استعلام زنده با امضای استاندارد نسخه ۴ XT..."):
+        with st.spinner("🔄 در حال استعلام زنده از سرور رسمی sapi.xt.com..."):
             usdt_spot = 0.0
             usdt_futures = 0.0
             
-            # --- اصلاح امضا و هدرهای اسپات به نسخه رسمی ۴ مپ شده کیف پول ---
+            # --- اتصال به سرور رسمی اسپات با دامنه‌ی معرفی شده در مستندات شما ---
             try:
                 ts_spot = str(int(time.time() * 1000))
-                path_spot = "/v4/wallet/balances"
-                # ساختار دقیق امضای GET بدون پارامتر طبق داکیومنت XT
+                path_spot = "/v4/accounts"
+                
+                # امضای استاندارد الگوریتم v4 بر اساس داده‌های خطی
                 sign_str_spot = f"#{ts_spot}#GET#{path_spot}"
                 sig_spot = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_spot.encode('utf-8'), hashlib.sha256).hexdigest()
                 
-                # تصحیح نام هدرهای هماهنگ با سرور اصلی
                 headers_spot = {
                     "xt-validate-key": st.session_state['xt_key'],
                     "xt-validate-timestamp": ts_spot,
                     "xt-validate-signature": sig_spot
                 }
                 
-                res_spot = requests.get(f"https://api.xt.com{path_spot}", headers=headers_spot, timeout=5)
+                # استفاده از دامنه‌ی اختصاصی بازار اسپات: sapi.xt.com
+                res_spot = requests.get(f"https://sapi.xt.com{path_spot}", headers=headers_spot, timeout=5)
                 
                 if res_spot.status_code != 200:
                     st.error(f"⚠️ وضعیت پاسخ بخش اسپات (کد {res_spot.status_code}): {res_spot.text}")
@@ -123,7 +124,7 @@ elif view == 'bal_total':
             except Exception as e:
                 st.error(f"❌ خطای سیستم در اتصال اسپات: {str(e)}")
 
-            # --- استعلام فیوچرز ---
+            # --- استعلام فیوچرز (fapi.xt.com) ---
             try:
                 ts_fut = str(int(time.time() * 1000))
                 sign_str_fut = f"validate-algorithms#GET#/future/v1/balance/list#timestamp={ts_fut}"
@@ -154,7 +155,7 @@ elif view == 'bal_total':
             st.markdown(html_bal, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# سایر نماها برای پایداری پلتفرم حفظ شده‌اند...
+# سایر نماها...
 elif view == 'bal_part':
     st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی کیف پول‌ها</h2><table class='custom-table'><tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>موقعیت نگهداری دارایی</th></tr><tr><td><b>USDT</b></td><td>در حال استعلام...</td><td>حساب صرافی</td></tr></table></div>", unsafe_allow_html=True)
 elif view in ['sig_spot', 'sig_futures']:
