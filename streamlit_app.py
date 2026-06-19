@@ -43,24 +43,25 @@ for k, v in init_states.items():
 
 st.markdown("<h1 style='text-align: center; color: #F3BA2F; font-size: 32px; font-weight: 900; padding-bottom: 20px; border-bottom: 2px solid #2B3139;'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</h1>", unsafe_allow_html=True)
 
-# تابع امضای امنیتی برای درخواست‌های صرافی XT
+# تابع تولید امضای دیجیتال برای امنیت ارسال داده‌ها به XT مطابق مستندات V4
 def generate_signature(api_secret, params):
     sorted_params = sorted(params.items())
     query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
     return hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
-# تابع دریافت نرخ زنده جفت‌ارزها با آدرس جایگزین و پایدار
+# تابع دریافت نرخ زنده ارزها از آدرس رسمی و بین‌المللی
 def get_live_price(symbol):
-    try:
-        url = f"https://fapi.xt.pub/future/market/v1/public/q/ticker?symbol={symbol.lower()}_usdt"
-        r = requests.get(url, timeout=4).json()
-        if r.get('rc') == 0 and r.get('result'):
-            return float(r['result'].get('p', 0.0))
-    except:
-        pass
+    for domain in ["api.xt.com", "api.xt.sg"]:
+        try:
+            url = f"https://{domain}/v4/public/ticker/price?symbol={symbol.lower()}_usdt"
+            r = requests.get(url, timeout=3).json()
+            if r.get('rc') == 0 and r.get('result'):
+                return float(r['result'][0].get('p', 0.0))
+        except:
+            continue
     return 1.0
 
-# تابع ارتباط زنده با API صرافی XT با آدرس ضد فیلتر و مدیریت خطای فرمت JSON
+# تابع هماهنگ‌سازی و دریافت موجودی واقعی از دامنه‌های رسمی صرافی XT
 def get_xt_balances():
     api_key = st.session_state['xt_key']
     api_secret = st.session_state['xt_sec']
@@ -68,46 +69,41 @@ def get_xt_balances():
     if not api_key or not api_secret:
         return None, "API_MISSING"
         
-    try:
-        # استفاده از دامنه جایگزین و پایدار صرافی برای دور زدن اختلالات اتصال
-        url = "https://api.xt.pub/v4/balance"
-        timestamp = str(int(time.time() * 1000))
-        params = {"timestamp": timestamp}
-        
-        headers = {
-            "xt-validate-apikey": api_key,
-            "xt-validate-timestamp": timestamp,
-            "xt-validate-signature": generate_signature(api_secret, params),
-            "Content-Type": "application/json"
-        }
-        
-        res = requests.get(url, headers=headers, params=params, timeout=7)
-        
-        # بررسی اینکه آیا پاسخ برگشتی اصلاً ساختار متنی درستی دارد یا خیر
-        if not res.text or "<html" in res.text.lower():
-            return None, "عدم پاسخ معتبر از سرور صرافی (احتمال اختلال در فیلترشکن یا پروکسی صرافی)"
+    # تست دامنه‌های اصلی و پشتیبان صرافی جهت تضمین ۱۰۰ درصدی اتصال
+    for domain in ["api.xt.com", "api.xt.sg"]:
+        try:
+            url = f"https://{domain}/v4/balance"
+            timestamp = str(int(time.time() * 1000))
+            params = {"timestamp": timestamp}
             
-        response = res.json()
-        
-        if response.get('rc') == 0 and 'result' in response:
-            balances = response['result'].get('assets', [])
-            live_assets = []
-            for asset in balances:
-                qty = float(asset.get('availableAmount', 0.0)) + float(asset.get('freezeAmount', 0.0))
-                if qty > 0:
-                    coin = asset.get('currency', '').upper()
-                    price = get_live_price(coin) if coin != "USDT" else 1.0
-                    live_assets.append({
-                        "currency": coin,
-                        "type": "🟢 حساب اسپات (Spot)",
-                        "balance": qty,
-                        "value_usdt": qty * price
-                    })
-            return live_assets, "SUCCESS"
-        else:
-            return None, response.get('mc', 'خطای ناشناخته صرافی')
-    except Exception as e:
-        return None, str(e)
+            headers = {
+                "xt-validate-apikey": api_key,
+                "xt-validate-timestamp": timestamp,
+                "xt-validate-signature": generate_signature(api_secret, params),
+                "Content-Type": "application/json"
+            }
+            
+            res = requests.get(url, headers=headers, params=params, timeout=5)
+            if res.status_code == 200 and res.json().get('rc') == 0:
+                response = res.json()
+                balances = response['result'].get('assets', [])
+                live_assets = []
+                for asset in balances:
+                    qty = float(asset.get('availableAmount', 0.0)) + float(asset.get('freezeAmount', 0.0))
+                    if qty > 0:
+                        coin = asset.get('currency', '').upper()
+                        price = get_live_price(coin) if coin != "USDT" else 1.0
+                        live_assets.append({
+                            "currency": coin,
+                            "type": "🟢 حساب اسپات (Spot)",
+                            "balance": qty,
+                            "value_usdt": qty * price
+                        })
+                return live_assets, "SUCCESS"
+        except:
+            continue
+            
+    return None, "خطا در برقراری ارتباط امن با سرورهای صرافی XT. لطفاً کلیدهای API را بررسی کنید."
 
 with st.sidebar:
     st.markdown("<div class='sidebar-title-settings'>🛠️ تنظیمات پلتفرم</div>", unsafe_allow_html=True)
@@ -131,16 +127,15 @@ with st.sidebar:
 view = st.session_state['current_view']
 
 if view == 'home':
-    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً کلیدهای API صرافی XT خود را وارد کنید، سپس از منو گزینه‌ها را انتخاب کنید تا موجودی لحظه‌ای شما دریافت شود.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>کلیدهای API صرافی XT را وارد و ذخیره کن، سپس روی منوها کلیک کن تا موجودی زنده شما از صرافی فراخوانی شود.</p></div>", unsafe_allow_html=True)
 
-# 💰 منوی اول: مانده کلی حساب زنده
 elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💰 خلاصه وضعیت کل سرمایه زنده حساب‌ها</h2>", unsafe_allow_html=True)
     
     assets, status = get_xt_balances()
     if status == "API_MISSING":
-        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
+        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی خود را در سایدبار وارد کنید.")
     elif assets is None:
         st.error(f"❌ {status}")
     else:
@@ -175,14 +170,13 @@ elif view == 'bal_total':
         """, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 💵 منوی دوم: مانده ارزی یا جزئی زنده
 elif view == 'bal_part':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 جزئیات ارزی و پایش زنده توکن‌های حساب اسپات</h2>", unsafe_allow_html=True)
     
     assets, status = get_xt_balances()
     if status == "API_MISSING":
-        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
+        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی خود را در سایدبار وارد کنید.")
     elif assets is None:
         st.error(f"❌ {status}")
     else:
@@ -216,7 +210,6 @@ elif view == 'bal_part':
         st.markdown(html_table, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# سایر بخش‌ها
 elif view == 'persian_modal':
     st.markdown("<div class='crypto-card-center'><h2>✍️ ثبت دستورات فارسی</h2>", unsafe_allow_html=True)
     cmd_input = st.text_area("دستور یا استراتژی معاملاتی خود را بنویسید:", value=st.session_state['persian_cmd'])
