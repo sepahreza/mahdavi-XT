@@ -10,7 +10,7 @@ import pytz
 # تنظیمات اصلی صفحه
 st.set_page_config(page_title="اتاق فرمان غلامرضا مهدوی", layout="wide")
 
-# استایل‌دهی سراسری پلتفرم برای راست‌چین کردن و تم شیک صرافی (دقیقاً مشابه عکس‌ها)
+# استایل‌دهی سراسری پلتفرم برای راست‌چین کردن و تم شیک صرافی
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
@@ -58,7 +58,7 @@ with st.sidebar:
     st.markdown("<div class='sidebar-title-live'>🚀 منوی عملیات زنده</div>", unsafe_allow_html=True)
     if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
     if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
+    if st.button("🟢 دریافت سیگانی اسپات"): st.session_state['current_view'] = 'sig_spot'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
     if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
     if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
     if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
@@ -85,20 +85,22 @@ elif view == 'persian_modal':
 
 elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی و تفکیک شده کل حساب صرافی</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی تمام ارزهای موجود در حساب صرافی</h2>", unsafe_allow_html=True)
     
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with st.spinner("🔄 در حال استعلام لحظه‌ای موجودی از سرور رسمی صرافی..."):
-            usdt_spot = 0.0
-            usdt_futures = 0.0
-            usdt_bots = 20.0  # مقدار فرضی پلتفرم ربات‌ها مطابق تصویر دوم شما
+        with st.spinner("🔄 در حال استخراج و تحلیل پویای تمام دارایی‌های حساب..."):
             
-            # --- استعلام نهایی اسپات (با آدرس اصلاح‌شده /v4/balances طبق داکیومنت) ---
+            spot_assets = []
+            futures_assets = []
+            
+            # --- ۱. استخراج پویای تمام ارزهای حساب اسپات ---
             try:
                 ts_spot = str(int(time.time() * 1000))
-                path_spot = "/v4/balances"  # اصلاح شایان ذکر: اضافه شدن s به انتهای آدرس
+                path_spot = "/v4/balances"
+                
+                # ساخت امضای دقیق نسخه ۴ بدون هدرهای اضافی برای جلوگیری از تداخل
                 sign_str_spot = f"#{ts_spot}#GET#{path_spot}"
                 sig_spot = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_spot.encode('utf-8'), hashlib.sha256).hexdigest()
                 
@@ -107,51 +109,76 @@ elif view == 'bal_total':
                     "xt-validate-timestamp": ts_spot,
                     "xt-validate-signature": sig_spot
                 }
-                res_spot = requests.get(f"https://sapi.xt.com{path_spot}", headers=headers_spot, timeout=5)
+                res_spot = requests.get(f"https://sapi.xt.com{path_spot}", headers=headers_spot, timeout=7)
                 if res_spot.status_code == 200:
                     data_spot = res_spot.json()
                     if "result" in data_spot and isinstance(data_spot["result"], list):
                         for asset in data_spot["result"]:
-                            if asset.get("currency", "").upper() == "USDT":
-                                usdt_spot = float(asset.get("available", 0.0))
-                                break
+                            free_bal = float(asset.get("available", 0.0))
+                            lock_bal = float(asset.get("freeze", 0.0))
+                            total_bal = free_bal + lock_bal
+                            if total_bal > 0.00001:  # ارزهایی که موجودی واقعی دارند
+                                spot_assets.append({
+                                    "currency": asset.get("currency", "").upper(),
+                                    "balance": total_bal,
+                                    "type": "🟢 حساب اسپات"
+                                })
                 else:
-                    st.error(f"⚠️ پاسخ سرور اسپات: {res_spot.text}")
+                    st.error(f"⚠️ خطای پاسخ سرور اسپات: {res_spot.text}")
             except Exception as e:
-                st.error(f"❌ خطای اتصال اسپات: {str(e)}")
+                st.error(f"❌ خطای سیستم در اتصال اسپات: {str(e)}")
 
-            # --- استعلام فیوچرز (fapi.xt.com) ---
+            # --- ۲. استخراج پویای تمام ارزهای حساب فیوچرز ---
             try:
                 ts_fut = str(int(time.time() * 1000))
                 sign_str_fut = f"validate-algorithms#GET#/future/v1/balance/list#timestamp={ts_fut}"
                 sig_fut = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_fut.encode('utf-8'), hashlib.sha256).hexdigest()
-                headers_fut = {"xt-validate-algorithms-key": st.session_state['xt_key'], "xt-validate-algorithms-timestamp": ts_fut, "xt-validate-algorithms-signature": sig_fut}
-                res_fut = requests.get("https://fapi.xt.com/future/v1/balance/list", headers=headers_fut, timeout=5)
+                headers_fut = {
+                    "xt-validate-algorithms-key": st.session_state['xt_key'],
+                    "xt-validate-algorithms-timestamp": ts_fut,
+                    "xt-validate-algorithms-signature": sig_fut
+                }
+                res_fut = requests.get("https://fapi.xt.com/future/v1/balance/list", headers=headers_fut, timeout=7)
                 if res_fut.status_code == 200:
                     data_fut = res_fut.json()
                     if "result" in data_fut and isinstance(data_fut["result"], list):
                         for asset in data_fut["result"]:
-                            if asset.get("coin", "").upper() == "USDT":
-                                usdt_futures = float(asset.get("balance", 0.0))
-                                break
+                            bal = float(asset.get("balance", 0.0))
+                            if bal > 0.00001:
+                                futures_assets.append({
+                                    "currency": asset.get("coin", "").upper(),
+                                    "balance": bal,
+                                    "type": "🔥 حساب فیوچرز"
+                                })
+                else:
+                    st.error(f"⚠️ خطای پاسخ سرور فیوچرز: {res_fut.text}")
             except Exception as e:
-                st.error(f"❌ خطای اتصال فیوچرز: {str(e)}")
+                st.error(f"❌ خطای سیستم در اتصال فیوچرز: {str(e)}")
             
-            total_assets = usdt_spot + usdt_futures + usdt_bots
+            # ادغام و ساخت جدول داینامیک
+            all_records = spot_assets + futures_assets
             
-            html_bal = f"<table class='custom-table'>" \
-                       f"<tr style='background-color: #1F2226;'><th>بخش مالی صرافی XT</th><th>موجودی واقعی و تایید شده (USDT)</th></tr>" \
-                       f"<tr><td style='color:#02C076;'>🟢 موجودی حساب اسپات (Spot Wallet)</td><td>USDT {usdt_spot:,.2f}</td></tr>" \
-                       f"<tr><td style='color:#F3BA2F;'>🔥 موجودی حساب فیوچرز (Futures Account)</td><td>USDT {usdt_futures:,.2f}</td></tr>" \
-                       f"<tr><td style='color:#7F00FF;'>🤖 موجودی پلتفرم ربات‌های معاملاتی</td><td>USDT {usdt_bots:,.2f}</td></tr>" \
-                       f"<tr style='background-color:#2B3139;'><td style='color:#F3BA2F; font-size:18px;'>📊 جمع کل دارایی خالص تحت مدیریت</td><td style='color:#F3BA2F; font-size:18px;'>USDT {total_assets:,.2f}</td></tr>" \
-                       f"</table>"
-            st.markdown(html_bal, unsafe_allow_html=True)
+            if not all_records:
+                st.info("ℹ️ هیچ دارایی یا ارزی با موجودی بالای صفر در حساب‌های شما یافت نشد یا کلیدهای API دسترسی محدودی دارند.")
+            else:
+                html_bal = f"<table class='custom-table'>" \
+                           f"<tr style='background-color: #1F2226;'><th>نام ارز دیجیتال</th><th>محل نگهداری دارایی</th><th>مقدار موجودی واقعی</th></tr>"
+                
+                for item in all_records:
+                    html_bal += f"<tr>" \
+                                f"<td><b>{item['currency']}</b></td>" \
+                                f"<td>{item['type']}</td>" \
+                                f"<td style='color:#F3BA2F;'>{item['balance']:.6f}</td>" \
+                                f"</tr>"
+                
+                html_bal += f"</table>"
+                st.markdown(html_bal, unsafe_allow_html=True)
+                
     st.markdown("</div>", unsafe_allow_html=True)
 
-# بقیه کدهای نماها به صورت کامل باقی مانده است...
+# بقيه منوها بدون تغییر برای حفظ پایداری ظاهر...
 elif view == 'bal_part':
-    st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی کیف پول‌ها</h2><table class='custom-table'><tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>موقعیت نگهداری دارایی</th></tr><tr><td><b>USDT</b></td><td>در حال استعلام...</td><td>حساب صرافی</td></tr></table></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی کیف پول‌ها</h2><p>جهت پایش جزئیات بیشتر به بخش مانده کلی مراجعه کنید.</p></div>", unsafe_allow_html=True)
 elif view in ['sig_spot', 'sig_futures']:
     is_futures = (view == 'sig_futures'); mode_title = "فیوچرز" if is_futures else "اسپات"
     st.markdown(f"<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>🎯 تنظیمات پیشرفته دریافت سیگنال هوشمند ({mode_title})</h2>", unsafe_allow_html=True)
