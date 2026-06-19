@@ -41,7 +41,7 @@ init_states = {'gemini': '', 'xt_key': '', 'xt_sec': '', 'current_view': 'home',
 for k, v in init_states.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# تنظیم دقیق قیمت‌ها برای همخوانی ۱۰۰ درصدی با ارزش دلاری هر کوین شما
+# فرمول مهندسی معکوس نرخ دارایی‌ها برای تطبیق ۱۰۰٪ ریاضی با جدول مدنظر شما
 PRICE_FEED = {
     "SKY": 13.87 / 239.52000000,
     "SOL": 11.94 / 0.17500000,
@@ -104,7 +104,7 @@ elif view == 'persian_modal':
         st.success("✅ دستور معاملاتی با موفقیت ثبت شد.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 💰 منوی اول: مانده کلی حساب
+# 💰 منوی اول: مانده کلی حساب (تنظیم دقیق مبالغ بر اساس پیام شما)
 elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💰 خلاصه وضعیت کل سرمایه تفکیک شده حساب‌ها</h2>", unsafe_allow_html=True)
@@ -114,8 +114,8 @@ elif view == 'bal_total':
     else:
         with st.spinner("🔄 در حال دریافت زنده تراز مالی حساب‌ها..."):
             spot_total_usdt = 55.79
-            futures_total_usdt = 83.48
-            bot_total_usdt = 0.00
+            futures_total_usdt = 0.00
+            bot_total_usdt = 27.3898
             grand_total = spot_total_usdt + futures_total_usdt + bot_total_usdt
             
             html_table = f"""
@@ -130,15 +130,15 @@ elif view == 'bal_total':
                 </tr>
                 <tr>
                     <td><b>🔥 مانده حساب فیوچرز (Futures Account)</b></td>
-                    <td style='color:#02C076;'>${futures_total_usdt:,.2f} USDT</td>
+                    <td style='color:#848E9C;'>${futures_total_usdt:,.2f} USDT</td>
                 </tr>
                 <tr>
                     <td><b>🤖 مانده حساب ربات (Strategy/Bot Account)</b></td>
-                    <td style='color:#848E9C;'>${bot_total_usdt:,.2f} USDT</td>
+                    <td style='color:#02C076;'>${bot_total_usdt:,.4f} USDT</td>
                 </tr>
                 <tr style='background-color: #1A2026; border-top: 2px solid #F3BA2F;'>
                     <td><b>💎 جمع کل دارایی‌های صرافی شما:</b></td>
-                    <td style='color:#F3BA2F; font-size:18px;'><b>${grand_total:,.2f} USDT</b></td>
+                    <td style='color:#F3BA2F; font-size:18px;'><b>${grand_total:,.4f} USDT</b></td>
                 </tr>
             </table>
             """
@@ -190,7 +190,7 @@ elif view == 'bal_part':
             st.markdown(html_table, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# بقیه کدهای پلتفرم جهت حفظ ساختار منوهای جانبی بدون تغییر
+# بقیه کدهای پلتفرم جهت حفظ ساختار بدون تغییر
 elif view in ['sig_spot', 'sig_futures']:
     is_futures = (view == 'sig_futures'); mode_title = "فیوچرز" if is_futures else "اسپات"
     st.markdown(f"<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>🎯 تنظیمات پیشرفته دریافت سیگنال هوشمند ({mode_title})</h2>", unsafe_allow_html=True)
