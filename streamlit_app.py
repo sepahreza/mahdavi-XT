@@ -87,17 +87,14 @@ with st.sidebar:
 
 view = st.session_state['current_view']
 
-# تابع ساده‌شده انتخاب ارز برای جلوگیری از خطای پرانتز
 def get_asset_selection(key_suffix):
     asset_select = st.selectbox("🪙 انتخاب ارز دیجیتال مورد نظر:", ["BTC", "ETH", "BNB", "SOL", "TON", "XRP", "ADA", "DOGE"], key=f"sel_{key_suffix}")
     asset_custom = st.text_input("✍️ یا تایپ دستی نماد ارز (اختیاری):", value="", key=f"cust_{key_suffix}").upper().strip()
     return asset_custom if asset_custom else asset_select
 
-# صفحه پیش‌فرض (خانه)
 if view == 'home':
     st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً از منوی سمت راست، گزینه مورد نظر خود را انتخاب کنید.</p></div>", unsafe_allow_html=True)
 
-# ۱. منوی دستور فارسی
 elif view == 'persian_modal':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #FF9900; font-weight: 900;'>✍️ ثبت دستورات فارسی اختصاصی و هوشمند پلتفرم</h2>", unsafe_allow_html=True)
@@ -107,7 +104,7 @@ elif view == 'persian_modal':
         st.success(f"✅ دستور معاملاتی شما با موفقیت در لایه محاسباتی ثبت شد.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ۲. قدم اول: نمایش مانده واقعی و تفکیک شده متصل به صرافی با لایه عیب‌یابی خطای صرافی
+# اصلاح آدرس اسپات از /v4/balance به /v4/accounts
 elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📊 موجودی واقعی و تفکیک شده کل حساب صرافی</h2>", unsafe_allow_html=True)
@@ -119,73 +116,13 @@ elif view == 'bal_total':
             usdt_spot = 0.0
             usdt_futures = 0.0
             
-            # استعلام اسپات
+            # --- استعلام اسپات از آدرس رسمی جدید ---
             try:
                 ts_spot = str(int(time.time() * 1000))
-                sign_str_spot = f"validate-algorithms#GET#/v4/balance#timestamp={ts_spot}"
+                # فرمت جدید امضا برای آدرس اکانت‌ها
+                sign_str_spot = f"validate-algorithms#GET#/v4/accounts#timestamp={ts_spot}"
                 sig_spot = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_spot.encode('utf-8'), hashlib.sha256).hexdigest()
-                headers_spot = {"xt-validate-algorithms-key": st.session_state['xt_key'], "xt-validate-algorithms-timestamp": ts_spot, "xt-validate-algorithms-signature": sig_spot}
-                res_spot = requests.get("https://api.xt.com/v4/balance", headers=headers_spot, timeout=5)
-                
-                # لایه نمایش عیب‌یابی خطای سرور صرافی برای بخش اسپات
-                if res_spot.status_code != 200:
-                    st.error(f"⚠️ خطای سرور صرافی در بخش اسپات (کد {res_spot.status_code}): {res_spot.text}")
-                else:
-                    data_spot = res_spot.json()
-                    if "result" in data_spot and "balances" in data_spot["result"]:
-                        for asset in data_spot["result"]["balances"]:
-                            if asset.get("currency", "").upper() == "USDT":
-                                usdt_spot = float(asset.get("available", 0.0))
-                                break
-                    elif "mc" in data_spot or "msg" in data_spot:
-                        st.error(f"🚫 پیغام صرافی در بخش اسپات: {data_spot.get('msg', 'خطای ناشناخته')}")
-            except Exception as e:
-                st.error(f"❌ خطای لوکال سیستم در اتصال اسپات: {str(e)}")
-
-            # استعلام فیوچرز
-            try:
-                ts_fut = str(int(time.time() * 1000))
-                sign_str_fut = f"validate-algorithms#GET#/future/v1/balance/list#timestamp={ts_fut}"
-                sig_fut = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_fut.encode('utf-8'), hashlib.sha256).hexdigest()
-                headers_fut = {"xt-validate-algorithms-key": st.session_state['xt_key'], "xt-validate-algorithms-timestamp": ts_fut, "xt-validate-algorithms-signature": sig_fut}
-                res_fut = requests.get("https://fapi.xt.com/future/v1/balance/list", headers=headers_fut, timeout=5)
-                
-                # لایه نمایش عیب‌یابی خطای سرور صرافی برای بخش فیوچرز
-                if res_fut.status_code != 200:
-                    st.error(f"⚠️ خطای سرور صرافی در بخش فیوچرز (کد {res_fut.status_code}): {res_fut.text}")
-                else:
-                    data_fut = res_fut.json()
-                    if "result" in data_fut and isinstance(data_fut["result"], list):
-                        for asset in data_fut["result"]:
-                            if asset.get("coin", "").upper() == "USDT":
-                                usdt_futures = float(asset.get("balance", 0.0))
-                                break
-                    elif "mc" in data_fut or "msg" in data_fut:
-                        st.error(f"🚫 پیغام صرافی در بخش فیوچرز: {data_fut.get('msg', 'خطای ناشناخته')}")
-            except Exception as e:
-                st.error(f"❌ خطای لوکال سیستم در اتصال فیوچرز: {str(e)}")
-            
-            total_assets = usdt_spot + usdt_futures
-            
-            html_bal = f"<table class='custom-table'>" \
-                       f"<tr style='background-color: #1F2226;'><th>بخش مالی صرافی XT</th><th>موجودی واقعی و لحظه‌ای (USDT)</th></tr>" \
-                       f"<tr><td style='color:#02C076;'>🟢 موجودی حساب اسپات (Spot Wallet)</td><td>{usdt_spot:,.2f} USDT</td></tr>" \
-                       f"<tr><td style='color:#F3BA2F;'>🔥 موجودی حساب فیوچرز (Futures Account)</td><td>{usdt_futures:,.2f} USDT</td></tr>" \
-                       f"<tr style='background-color:#2B3139;'><td style='color:#F3BA2F; font-size:18px;'>📊 جمع کل دارایی واقعی شما</td><td style='color:#F3BA2F; font-size:18px;'>{total_assets:,.2f} USDT</td></tr>" \
-                       f"</table>"
-            st.markdown(html_bal, unsafe_allow_html=True)
-            
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ۳. مانده‌های جزئی کیف پول‌ها
-elif view == 'bal_part':
-    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی و تفکیک شده کیف پول‌ها</h2>", unsafe_allow_html=True)
-    html_part = "<table class='custom-table'>" \
-                "<tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>موقعیت نگهداری دارایی</th></tr>" \
-                "<tr><td><b>USDT</b></td><td>در حال استعلام...</td><td>حساب صرافی</td></tr>" \
-                "</table>"
-    st.markdown(html_part, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-#
+                headers_spot = {
+                    "xt-validate-algorithms-key": st.session_state['xt_key'], 
+                    "xt-validate-algorithms-timestamp": ts_spot, 
+                    "xt-validate-algorithms-signature": sig_spot
