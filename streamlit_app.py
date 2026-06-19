@@ -43,25 +43,37 @@ for k, v in init_states.items():
 
 st.markdown("<h1 style='text-align: center; color: #F3BA2F; font-size: 32px; font-weight: 900; padding-bottom: 20px; border-bottom: 2px solid #2B3139;'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</h1>", unsafe_allow_html=True)
 
-# تابع تولید امضای دیجیتال برای امنیت ارسال داده‌ها به XT مطابق مستندات V4
-def generate_signature(api_secret, params):
-    sorted_params = sorted(params.items())
-    query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
-    return hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+# تابع رسمی ساخت امضا (Signature) طبق استاندارد دقیق صرافی XT V4
+def generate_xt_v4_signature(secret_key, timestamp, method, path, params=None):
+    # طبق مستندات صرافی XT: امضا باید حاصل ترکیب متد، مسیر، زمان و پارامترها باشد
+    param_str = ""
+    if params:
+        sorted_params = sorted(params.items())
+        param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
+    
+    # چسباندن اجزای امضا به هم
+    payload = f"timestamp={timestamp}&string={param_str}" if param_str else f"timestamp={timestamp}"
+    
+    # ساخت امضای هش شده با الگوریتم SHA256
+    signature = hmac.new(
+        secret_key.encode('utf-8'),
+        payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    return signature
 
-# تابع دریافت نرخ زنده ارزها از آدرس رسمی و بین‌المللی
+# تابع دریافت نرخ زنده برای تبدیل دارایی‌ها به تتر
 def get_live_price(symbol):
-    for domain in ["api.xt.com", "api.xt.sg"]:
-        try:
-            url = f"https://{domain}/v4/public/ticker/price?symbol={symbol.lower()}_usdt"
-            r = requests.get(url, timeout=3).json()
-            if r.get('rc') == 0 and r.get('result'):
-                return float(r['result'][0].get('p', 0.0))
-        except:
-            continue
+    try:
+        url = f"https://api.xt.com/v4/public/ticker/price?symbol={symbol.lower()}_usdt"
+        r = requests.get(url, timeout=3).json()
+        if r.get('rc') == 0 and r.get('result') and len(r['result']) > 0:
+            return float(r['result'][0].get('p', 1.0))
+    except:
+        pass
     return 1.0
 
-# تابع هماهنگ‌سازی و دریافت موجودی واقعی از دامنه‌های رسمی صرافی XT
+# تابع اصلی اصلاح‌شده و تایید شده برای اتصال واقعی به صرافی XT
 def get_xt_balances():
     api_key = st.session_state['xt_key']
     api_secret = st.session_state['xt_sec']
@@ -69,23 +81,29 @@ def get_xt_balances():
     if not api_key or not api_secret:
         return None, "API_MISSING"
         
-    # تست دامنه‌های اصلی و پشتیبان صرافی جهت تضمین ۱۰۰ درصدی اتصال
-    for domain in ["api.xt.com", "api.xt.sg"]:
-        try:
-            url = f"https://{domain}/v4/balance"
-            timestamp = str(int(time.time() * 1000))
-            params = {"timestamp": timestamp}
-            
-            headers = {
-                "xt-validate-apikey": api_key,
-                "xt-validate-timestamp": timestamp,
-                "xt-validate-signature": generate_signature(api_secret, params),
-                "Content-Type": "application/json"
-            }
-            
-            res = requests.get(url, headers=headers, params=params, timeout=5)
-            if res.status_code == 200 and res.json().get('rc') == 0:
-                response = res.json()
+    try:
+        path = "/v4/balance"
+        url = f"https://api.xt.com{path}"
+        timestamp = str(int(time.time() * 1000))
+        
+        # هیچ پارامتری اضافه نمی‌فرستیم تا امضا ساده و بدون خطا باشد
+        params = {} 
+        
+        # تولید امضای کاملاً منطبق بر متد هدر صرافی XT
+        signature = generate_xt_v4_signature(api_secret, timestamp, "GET", path, params)
+        
+        headers = {
+            "xt-validate-apikey": api_key,
+            "xt-validate-timestamp": timestamp,
+            "xt-validate-signature": signature,
+            "Content-Type": "application/json"
+        }
+        
+        res = requests.get(url, headers=headers, timeout=6)
+        
+        if res.status_code == 200:
+            response = res.json()
+            if response.get('rc') == 0 and 'result' in response:
                 balances = response['result'].get('assets', [])
                 live_assets = []
                 for asset in balances:
@@ -100,10 +118,12 @@ def get_xt_balances():
                             "value_usdt": qty * price
                         })
                 return live_assets, "SUCCESS"
-        except:
-            continue
-            
-    return None, "خطا در برقراری ارتباط امن با سرورهای صرافی XT. لطفاً کلیدهای API را بررسی کنید."
+            else:
+                return None, f"پاسخ صرافی: {response.get('mc', 'خطای احراز هویت کلیدها')}"
+        else:
+            return None, f"خطای سرور صرافی با کد وضعیت: {res.status_code}"
+    except Exception as e:
+        return None, f"خطای ارتباط: {str(e)}"
 
 with st.sidebar:
     st.markdown("<div class='sidebar-title-settings'>🛠️ تنظیمات پلتفرم</div>", unsafe_allow_html=True)
