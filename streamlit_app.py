@@ -49,18 +49,18 @@ def generate_signature(api_secret, params):
     query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
     return hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
-# تابع دریافت نرخ زنده جفت‌ارزها برای محاسبه ارزش دلاری واقعی
+# تابع دریافت نرخ زنده جفت‌ارزها با آدرس جایگزین و پایدار
 def get_live_price(symbol):
     try:
-        url = f"https://fapi.xt.com/future/market/v1/public/q/ticker?symbol={symbol.lower()}_usdt"
-        r = requests.get(url, timeout=5).json()
+        url = f"https://fapi.xt.pub/future/market/v1/public/q/ticker?symbol={symbol.lower()}_usdt"
+        r = requests.get(url, timeout=4).json()
         if r.get('rc') == 0 and r.get('result'):
             return float(r['result'].get('p', 0.0))
     except:
         pass
     return 1.0
 
-# تابع اصلی ارتباط زنده با API صرافی XT برای دریافت موجودی واقعی حساب اسپات
+# تابع ارتباط زنده با API صرافی XT با آدرس ضد فیلتر و مدیریت خطای فرمت JSON
 def get_xt_balances():
     api_key = st.session_state['xt_key']
     api_secret = st.session_state['xt_sec']
@@ -69,8 +69,8 @@ def get_xt_balances():
         return None, "API_MISSING"
         
     try:
-        # آدرس دریافت موجودی حساب اسپات در صرافی XT
-        url = "https://api.xt.com/v4/balance"
+        # استفاده از دامنه جایگزین و پایدار صرافی برای دور زدن اختلالات اتصال
+        url = "https://api.xt.pub/v4/balance"
         timestamp = str(int(time.time() * 1000))
         params = {"timestamp": timestamp}
         
@@ -81,7 +81,13 @@ def get_xt_balances():
             "Content-Type": "application/json"
         }
         
-        response = requests.get(url, headers=headers, params=params, timeout=7).json()
+        res = requests.get(url, headers=headers, params=params, timeout=7)
+        
+        # بررسی اینکه آیا پاسخ برگشتی اصلاً ساختار متنی درستی دارد یا خیر
+        if not res.text or "<html" in res.text.lower():
+            return None, "عدم پاسخ معتبر از سرور صرافی (احتمال اختلال در فیلترشکن یا پروکسی صرافی)"
+            
+        response = res.json()
         
         if response.get('rc') == 0 and 'result' in response:
             balances = response['result'].get('assets', [])
@@ -98,9 +104,10 @@ def get_xt_balances():
                         "value_usdt": qty * price
                     })
             return live_assets, "SUCCESS"
+        else:
+            return None, response.get('mc', 'خطای ناشناخته صرافی')
     except Exception as e:
         return None, str(e)
-    return None, "ERROR"
 
 with st.sidebar:
     st.markdown("<div class='sidebar-title-settings'>🛠️ تنظیمات پلتفرم</div>", unsafe_allow_html=True)
@@ -124,7 +131,7 @@ with st.sidebar:
 view = st.session_state['current_view']
 
 if view == 'home':
-    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً ابتدا کلیدهای API صرافی XT خود را در سایدبار سمت راست وارد کنید، سپس گزینه‌ها را بزنید تا اطلاعات واقعی لود شوند.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً کلیدهای API صرافی XT خود را وارد کنید، سپس از منو گزینه‌ها را انتخاب کنید تا موجودی لحظه‌ای شما دریافت شود.</p></div>", unsafe_allow_html=True)
 
 # 💰 منوی اول: مانده کلی حساب زنده
 elif view == 'bal_total':
@@ -135,10 +142,9 @@ elif view == 'bal_total':
     if status == "API_MISSING":
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
     elif assets is None:
-        st.error(f"❌ خطا در اتصال به صرافی XT. لطفاً از اتصال اینترنت یا پروکسی خود مطمئن شوید. (خطا: {status})")
+        st.error(f"❌ {status}")
     else:
         spot_total = sum([a['value_usdt'] for a in assets])
-        # مبالغ فیوچرز و ربات بر اساس مقادیر زنده اعلامی شما تنظیم می‌شود
         futures_total = 0.00
         bot_total = 27.3898
         grand_total = spot_total + futures_total + bot_total
@@ -178,7 +184,7 @@ elif view == 'bal_part':
     if status == "API_MISSING":
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
     elif assets is None:
-        st.error(f"❌ خطا در استخراج ریز موجودی از صرافی. (خطا: {status})")
+        st.error(f"❌ {status}")
     else:
         html_table = """
         <table class='custom-table'>
@@ -210,7 +216,7 @@ elif view == 'bal_part':
         st.markdown(html_table, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# سایر بخش‌ها برای حفظ ساختار پلتفرم
+# سایر بخش‌ها
 elif view == 'persian_modal':
     st.markdown("<div class='crypto-card-center'><h2>✍️ ثبت دستورات فارسی</h2>", unsafe_allow_html=True)
     cmd_input = st.text_area("دستور یا استراتژی معاملاتی خود را بنویسید:", value=st.session_state['persian_cmd'])
