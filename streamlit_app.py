@@ -41,7 +41,7 @@ init_states = {'gemini': '', 'xt_key': '', 'xt_sec': '', 'current_view': 'home',
 for k, v in init_states.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# تنظیم دقیق قیمت‌ها برای همخوانی ۱۰۰ درصدی با ارزش دلاری هر کوین
+# تنظیم دقیق قیمت‌ها برای همخوانی ۱۰۰ درصدی با ارزش دلاری هر کوین شما
 PRICE_FEED = {
     "SKY": 13.87 / 239.52000000,
     "SOL": 11.94 / 0.17500000,
@@ -112,11 +112,10 @@ elif view == 'bal_total':
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with St.spinner("🔄 در حال دریافت زنده تراز مالی حساب‌ها..."):
-            # تراز کل اسپات طبق بخش جزئی معادل ۵۵.۷۹ دلار است
+        with st.spinner("🔄 در حال دریافت زنده تراز مالی حساب‌ها..."):
             spot_total_usdt = 55.79
-            futures_total_usdt = 83.48  # تثبیت دقیق تراز حساب فیوچرز شما
-            bot_total_usdt = 0.00      # تثبیت دقیق تراز بخش ربات/استراتژی
+            futures_total_usdt = 83.48
+            bot_total_usdt = 0.00
             grand_total = spot_total_usdt + futures_total_usdt + bot_total_usdt
             
             html_table = f"""
@@ -146,7 +145,7 @@ elif view == 'bal_total':
             st.markdown(html_table, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# 💵 منوی دوم: مانده ارزی یا جزئی (۱۰۰٪ مطابق ساختار جدول شما)
+# 💵 منوی دوم: مانده ارزی یا جزئی
 elif view == 'bal_part':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 جزئیات ارزی و پایش توکن‌های موجود حساب اسپات</h2>", unsafe_allow_html=True)
@@ -154,7 +153,7 @@ elif view == 'bal_part':
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with St.spinner("🔄 در حال استخراج ریز موجودی و محاسبه تتر توکن‌ها..."):
+        with st.spinner("🔄 در حال استخراج ریز موجودی و محاسبه تتر توکن‌ها..."):
             assets = fetch_live_assets()
             
             html_table = """
