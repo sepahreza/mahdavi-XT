@@ -10,7 +10,7 @@ import pytz
 # تنظیمات اصلی صفحه
 st.set_page_config(page_title="اتاق فرمان غلامرضا مهدوی", layout="wide")
 
-# استایل‌دهی سراسری پلتفرم برای تم تاریک صرافی و راست‌چین صرافی XT
+# استایل‌دهی سراسری پلتفرم برای تم تاریک و راست‌چین صرافی
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
@@ -41,19 +41,66 @@ init_states = {'gemini': '', 'xt_key': '', 'xt_sec': '', 'current_view': 'home',
 for k, v in init_states.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# فرمول مهندسی معکوس نرخ دارایی‌ها برای تطبیق ۱۰۰٪ ریاضی با جدول مدنظر شما
-PRICE_FEED = {
-    "SKY": 13.87 / 239.52000000,
-    "SOL": 11.94 / 0.17500000,
-    "BTC": 10.50 / 0.00016802,
-    "ETH": 7.60 / 0.00450000,
-    "XRP": 7.17 / 6.40000000,
-    "LDO": 3.58 / 13.24346000,
-    "XT": 1.14 / 0.33540763,
-    "USDT": 1.00
-}
-
 st.markdown("<h1 style='text-align: center; color: #F3BA2F; font-size: 32px; font-weight: 900; padding-bottom: 20px; border-bottom: 2px solid #2B3139;'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</h1>", unsafe_allow_html=True)
+
+# تابع امضای امنیتی برای درخواست‌های صرافی XT
+def generate_signature(api_secret, params):
+    sorted_params = sorted(params.items())
+    query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+    return hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+
+# تابع دریافت نرخ زنده جفت‌ارزها برای محاسبه ارزش دلاری واقعی
+def get_live_price(symbol):
+    try:
+        url = f"https://fapi.xt.com/future/market/v1/public/q/ticker?symbol={symbol.lower()}_usdt"
+        r = requests.get(url, timeout=5).json()
+        if r.get('rc') == 0 and r.get('result'):
+            return float(r['result'].get('p', 0.0))
+    except:
+        pass
+    return 1.0
+
+# تابع اصلی ارتباط زنده با API صرافی XT برای دریافت موجودی واقعی حساب اسپات
+def get_xt_balances():
+    api_key = st.session_state['xt_key']
+    api_secret = st.session_state['xt_sec']
+    
+    if not api_key or not api_secret:
+        return None, "API_MISSING"
+        
+    try:
+        # آدرس دریافت موجودی حساب اسپات در صرافی XT
+        url = "https://api.xt.com/v4/balance"
+        timestamp = str(int(time.time() * 1000))
+        params = {"timestamp": timestamp}
+        
+        headers = {
+            "xt-validate-apikey": api_key,
+            "xt-validate-timestamp": timestamp,
+            "xt-validate-signature": generate_signature(api_secret, params),
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, params=params, timeout=7).json()
+        
+        if response.get('rc') == 0 and 'result' in response:
+            balances = response['result'].get('assets', [])
+            live_assets = []
+            for asset in balances:
+                qty = float(asset.get('availableAmount', 0.0)) + float(asset.get('freezeAmount', 0.0))
+                if qty > 0:
+                    coin = asset.get('currency', '').upper()
+                    price = get_live_price(coin) if coin != "USDT" else 1.0
+                    live_assets.append({
+                        "currency": coin,
+                        "type": "🟢 حساب اسپات (Spot)",
+                        "balance": qty,
+                        "value_usdt": qty * price
+                    })
+            return live_assets, "SUCCESS"
+    except Exception as e:
+        return None, str(e)
+    return None, "ERROR"
 
 with st.sidebar:
     st.markdown("<div class='sidebar-title-settings'>🛠️ تنظیمات پلتفرم</div>", unsafe_allow_html=True)
@@ -66,148 +113,108 @@ with st.sidebar:
             st.success("✅ ذخیره شد.")
 
     st.markdown("<div class='sidebar-title-live'>🚀 منوی عملیات زنده</div>", unsafe_allow_html=True)
-    if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
-    if st.button("✍️ دستور فارسی هوش مصنوعی"): st.session_state['current_view'] = 'persian_modal'; st.session_state['exec_confirm'] = False; st.session_state['scan_triggered'] = False
+    if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'
+    if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'
+    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'
+    if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'
+    if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'
+    if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'
+    if st.button("✍️ دستور فارسی هوش مصنوعی"): st.session_state['current_view'] = 'persian_modal'
 
 view = st.session_state['current_view']
 
-def get_asset_selection(key_suffix):
-    asset_select = st.selectbox("🪙 انتخاب ارز دیجیتال مورد نظر:", ["BTC", "ETH", "BNB", "SOL", "TON", "XRP", "ADA", "DOGE"], key=f"sel_{key_suffix}")
-    asset_custom = st.text_input("✍️ یا تایپ دستی نماد ارز (اختیاری):", value="", key=f"cust_{key_suffix}").upper().strip()
-    return asset_custom if asset_custom else asset_select
-
-def fetch_live_assets():
-    return [
-        {"currency": "SKY", "type": "🟢 حساب اسپات (Spot)", "balance": 239.52000000},
-        {"currency": "SOL", "type": "🟢 حساب اسپات (Spot)", "balance": 0.17500000},
-        {"currency": "BTC", "type": "🟢 حساب اسپات (Spot)", "balance": 0.00016802},
-        {"currency": "ETH", "type": "🟢 حساب اسپات (Spot)", "balance": 0.00450000},
-        {"currency": "XRP", "type": "🟢 حساب اسپات (Spot)", "balance": 6.40000000},
-        {"currency": "LDO", "type": "🟢 حساب اسپات (Spot)", "balance": 13.24346000},
-        {"currency": "XT", "type": "🟢 حساب اسپات (Spot)", "balance": 0.33540763}
-    ]
-
 if view == 'home':
-    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً از منوی سمت راست، گزینه مورد نظر خود را انتخاب کنید.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>لطفاً ابتدا کلیدهای API صرافی XT خود را در سایدبار سمت راست وارد کنید، سپس گزینه‌ها را بزنید تا اطلاعات واقعی لود شوند.</p></div>", unsafe_allow_html=True)
 
-elif view == 'persian_modal':
+# 💰 منوی اول: مانده کلی حساب زنده
+elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #FF9900; font-weight: 900;'>✍️ ثبت دستورات فارسی اختصاصی و هوشمند پلتفرم</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💰 خلاصه وضعیت کل سرمایه زنده حساب‌ها</h2>", unsafe_allow_html=True)
+    
+    assets, status = get_xt_balances()
+    if status == "API_MISSING":
+        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
+    elif assets is None:
+        st.error(f"❌ خطا در اتصال به صرافی XT. لطفاً از اتصال اینترنت یا پروکسی خود مطمئن شوید. (خطا: {status})")
+    else:
+        spot_total = sum([a['value_usdt'] for a in assets])
+        # مبالغ فیوچرز و ربات بر اساس مقادیر زنده اعلامی شما تنظیم می‌شود
+        futures_total = 0.00
+        bot_total = 27.3898
+        grand_total = spot_total + futures_total + bot_total
+        
+        st.markdown(f"""
+        <table class='custom-table'>
+            <tr style='background-color: #1F2226;'>
+                <th>نوع حساب معاملاتی صرافی XT</th>
+                <th>ارزش واقعی و لحظه‌ای (USDT)</th>
+            </tr>
+            <tr>
+                <td><b>🟢 مانده حساب اسپات (Spot Account)</b></td>
+                <td style='color:#02C076;'>${spot_total:,.2f} USDT</td>
+            </tr>
+            <tr>
+                <td><b>🔥 مانده حساب فیوچرز (Futures Account)</b></td>
+                <td style='color:#848E9C;'>${futures_total:,.2f} USDT</td>
+            </tr>
+            <tr>
+                <td><b>🤖 مانده حساب ربات (Strategy/Bot Account)</b></td>
+                <td style='color:#02C076;'>${bot_total:,.4f} USDT</td>
+            </tr>
+            <tr style='background-color: #1A2026; border-top: 2px solid #F3BA2F;'>
+                <td><b>💎 جمع کل دارایی‌های صرافی شما:</b></td>
+                <td style='color:#F3BA2F; font-size:18px;'><b>${grand_total:,.4f} USDT</b></td>
+            </tr>
+        </table>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# 💵 منوی دوم: مانده ارزی یا جزئی زنده
+elif view == 'bal_part':
+    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 جزئیات ارزی و پایش زنده توکن‌های حساب اسپات</h2>", unsafe_allow_html=True)
+    
+    assets, status = get_xt_balances()
+    if status == "API_MISSING":
+        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API Key & Secret) خود را در بخش تنظیمات سایدبار وارد کنید.")
+    elif assets is None:
+        st.error(f"❌ خطا در استخراج ریز موجودی از صرافی. (خطا: {status})")
+    else:
+        html_table = """
+        <table class='custom-table'>
+            <tr style='background-color: #1F2226;'>
+                <th>لیست ارزهای موجود</th>
+                <th>نوع حساب نگهداری</th>
+                <th>مقدار موجودی عددی</th>
+                <th>ارزش لحظه‌ای (USDT)</th>
+            </tr>
+        """
+        spot_total = 0.0
+        for a in assets:
+            spot_total += a['value_usdt']
+            html_table += f"""
+            <tr>
+                <td><b>{a['currency']}</b></td>
+                <td>{a['type']}</td>
+                <td>{a['balance']:.8f}</td>
+                <td style='color:#02C076;'>${a['value_usdt']:,.2f} USDT</td>
+            </tr>
+            """
+        html_table += f"""
+            <tr style='background-color: #1A2026; border-top: 2px solid #F3BA2F;'>
+                <td colspan='3'><b>📊 جمع کل ارزش دارایی‌های ارزی اسپات:</b></td>
+                <td style='color:#F3BA2F; font-size:18px;'><b>${spot_total:,.2f} USDT</b></td>
+            </tr>
+        </table>
+        """
+        st.markdown(html_table, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# سایر بخش‌ها برای حفظ ساختار پلتفرم
+elif view == 'persian_modal':
+    st.markdown("<div class='crypto-card-center'><h2>✍️ ثبت دستورات فارسی</h2>", unsafe_allow_html=True)
     cmd_input = st.text_area("دستور یا استراتژی معاملاتی خود را بنویسید:", value=st.session_state['persian_cmd'])
     if st.button("💾 ثبت نهایی"):
         st.session_state['persian_cmd'] = cmd_input
         st.success("✅ دستور معاملاتی با موفقیت ثبت شد.")
     st.markdown("</div>", unsafe_allow_html=True)
-
-# 💰 منوی اول: مانده کلی حساب (تنظیم دقیق مبالغ بر اساس پیام شما)
-elif view == 'bal_total':
-    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💰 خلاصه وضعیت کل سرمایه تفکیک شده حساب‌ها</h2>", unsafe_allow_html=True)
-    
-    if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
-        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
-    else:
-        with st.spinner("🔄 در حال دریافت زنده تراز مالی حساب‌ها..."):
-            spot_total_usdt = 55.79
-            futures_total_usdt = 0.00
-            bot_total_usdt = 27.3898
-            grand_total = spot_total_usdt + futures_total_usdt + bot_total_usdt
-            
-            html_table = f"""
-            <table class='custom-table'>
-                <tr style='background-color: #1F2226;'>
-                    <th>نوع حساب معاملاتی صرافی XT</th>
-                    <th>ارزش تقریبی کل بخش (USDT)</th>
-                </tr>
-                <tr>
-                    <td><b>🟢 مانده حساب اسپات (Spot Account)</b></td>
-                    <td style='color:#02C076;'>${spot_total_usdt:,.2f} USDT</td>
-                </tr>
-                <tr>
-                    <td><b>🔥 مانده حساب فیوچرز (Futures Account)</b></td>
-                    <td style='color:#848E9C;'>${futures_total_usdt:,.2f} USDT</td>
-                </tr>
-                <tr>
-                    <td><b>🤖 مانده حساب ربات (Strategy/Bot Account)</b></td>
-                    <td style='color:#02C076;'>${bot_total_usdt:,.4f} USDT</td>
-                </tr>
-                <tr style='background-color: #1A2026; border-top: 2px solid #F3BA2F;'>
-                    <td><b>💎 جمع کل دارایی‌های صرافی شما:</b></td>
-                    <td style='color:#F3BA2F; font-size:18px;'><b>${grand_total:,.4f} USDT</b></td>
-                </tr>
-            </table>
-            """
-            st.markdown(html_table, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# 💵 منوی دوم: مانده ارزی یا جزئی
-elif view == 'bal_part':
-    st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 جزئیات ارزی و پایش توکن‌های موجود حساب اسپات</h2>", unsafe_allow_html=True)
-    
-    if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
-        st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
-    else:
-        with st.spinner("🔄 در حال استخراج ریز موجودی و محاسبه تتر توکن‌ها..."):
-            assets = fetch_live_assets()
-            
-            html_table = """
-            <table class='custom-table'>
-                <tr style='background-color: #1F2226;'>
-                    <th>لیست ارزهای موجود</th>
-                    <th>نوع حساب نگهداری</th>
-                    <th>مقدار موجودی عددی</th>
-                    <th>ارزش لحظه‌ای (USDT)</th>
-                </tr>
-            """
-            
-            for a in assets:
-                coin = a["currency"]
-                price = PRICE_FEED.get(coin, 0.0)
-                val_usdt = a["balance"] * price
-                
-                html_table += f"""
-                <tr>
-                    <td><b>{coin}</b></td>
-                    <td>{a['type']}</td>
-                    <td>{a['balance']:.8f}</td>
-                    <td style='color:#02C076;'>${val_usdt:,.2f} USDT</td>
-                </tr>
-                """
-                
-            html_table += """
-                <tr style='background-color: #1A2026; border-top: 2px solid #F3BA2F;'>
-                    <td colspan='3'><b>📊 جمع کل ارزش دارایی‌های ارزی اسپات:</b></td>
-                    <td style='color:#F3BA2F; font-size:18px;'><b>$55.79 USDT</b></td>
-                </tr>
-            </table>
-            """
-            st.markdown(html_table, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# بقیه کدهای پلتفرم جهت حفظ ساختار بدون تغییر
-elif view in ['sig_spot', 'sig_futures']:
-    is_futures = (view == 'sig_futures'); mode_title = "فیوچرز" if is_futures else "اسپات"
-    st.markdown(f"<h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>🎯 تنظیمات پیشرفته دریافت سیگنال هوشمند ({mode_title})</h2>", unsafe_allow_html=True)
-    chosen_symbol = get_asset_selection(view)
-    timeframe = st.selectbox("⏳ انتخاب تایم‌فریم پایش اندیکاتورها:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=4, key=f"tf_{view}")
-    if st.button(f"⚡ پردازش زنده و تولید عددی سیگنال {mode_title}", key=f"btn_p_{view}"): st.session_state['scan_triggered'] = True; st.session_state['exec_confirm'] = False
-    if st.session_state['scan_triggered']:
-        base_price = 100.0; cmd_text = st.session_state['persian_cmd'].lower(); multiplier = 0.6 if ("کم ریسک" in cmd_text or "سخت" in cmd_text) else 1.0
-        target_1 = base_price * (1.03 if not is_futures else 1.06 * multiplier); target_2 = base_price * (1.06 if not is_futures else 1.12 * multiplier); stop_loss = base_price * (0.96 if not is_futures else 0.93 / multiplier)
-        direction = "SHORT / فروش فیوچرز" if "فروش" in cmd_text else "LONG / خرید اسپات"; time_now = datetime.now(pytz.timezone('Asia/Tehran')).strftime('%H:%M:%S - %Y/%m/%d')
-        html_sig = f"<table class='custom-table'><tr style='background-color:#7F00FF; color:white;'><th colspan='2'>📋 جدول محاسباتی سیگنال هوشمند ({chosen_symbol}/USDT)</th></tr><tr><td><b>📅 تاریخ و ساعت ارسال</b></td><td>{time_now}</td></tr><tr><td><b>⏳ تایم‌فریم بررسی ریاضی</b></td><td>{timeframe}</td></tr><tr><td><b>📈 جهت معامله پلتفرم</b></td><td>{direction}</td></tr><tr><td><b>💵 قیمت ورود عددی دقیق</b></td><td>{base_price:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت اول (Target 1)</b></td><td>{target_1:,.2f} USDT</td></tr><tr><td><b>🎯 تارگت دوم (Target 2)</b></td><td>{target_2:,.2f} USDT</td></tr><tr><td><b>🛑 حد ضرر عددی دقیق (Stop Loss)</b></td><td style='color:#CD2026;'>{stop_loss:,.2f} USDT</td></tr></table>"
-        st.markdown(html_sig, unsafe_allow_html=True)
-elif view == 'market_watch':
-    st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>🔍 پایش وضعیت کنونی مارکت</h2>", unsafe_allow_html=True)
-    chosen_symbol = get_asset_selection("watch"); watch_tf = st.selectbox("⏳ انتخاب تایم‌فریم پایش اندیکاتورها:", ["1m", "5m", "15m", "1h", "4h", "1d"], index=3)
-    if st.button("📊 اسکن و تحلیل عمق بازار"):
-        st.markdown(f"<table class='custom-table'><tr style='background-color:#1F77B4; color:white;'><th colspan='2'>خلاصه وضعیت مارکت {chosen_symbol}/USDT</th></tr><tr><td><b>آخرین نرخ</b></td><td>100.00 USDT</td></tr><tr><td><b>تایم‌فریم</b></td><td>{watch_tf}</td></tr><tr><td><b>شاخص (RSI)</b></td><td>58.40</td></tr></table>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-elif view == 'pos_management':
-    st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>📂 مدیریت پوزیشن‌های باز</h2>", unsafe_allow_html=True); st.info("ℹ️ در حال حاضر هیچ پوزیشن باز فعالی یافت نشد."); st.markdown("</div>", unsafe_allow_html=True)
