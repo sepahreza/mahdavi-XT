@@ -90,19 +90,26 @@ elif view == 'bal_total':
     if not st.session_state['xt_key'] or not st.session_state['xt_sec']:
         st.warning("⚠️ لطفاً ابتدا کلیدهای امنیتی (API) خود را در سایدبار سمت راست وارد و ذخیره کنید.")
     else:
-        with st.spinner("🔄 در حال استعلام زنده از کیف پول صرافی XT..."):
+        with st.spinner("🔄 در حال استعلام زنده با امضای استاندارد نسخه ۴ XT..."):
             usdt_spot = 0.0
             usdt_futures = 0.0
             
-            # --- مسیر بسیار امن و تضمین شده کیف پول ولت اسپات ---
+            # --- اصلاح امضا و هدرهای اسپات به نسخه رسمی ۴ مپ شده کیف پول ---
             try:
                 ts_spot = str(int(time.time() * 1000))
-                sign_str_spot = f"validate-algorithms#GET#/v4/wallet/balances#timestamp={ts_spot}"
+                path_spot = "/v4/wallet/balances"
+                # ساختار دقیق امضای GET بدون پارامتر طبق داکیومنت XT
+                sign_str_spot = f"#{ts_spot}#GET#{path_spot}"
                 sig_spot = hmac.new(st.session_state['xt_sec'].encode('utf-8'), sign_str_spot.encode('utf-8'), hashlib.sha256).hexdigest()
-                headers_spot = {"xt-validate-algorithms-key": st.session_state['xt_key'], "xt-validate-algorithms-timestamp": ts_spot, "xt-validate-algorithms-signature": sig_spot}
                 
-                # استفاده از دامنه بسیار پایدار جایگزین .com برای رفع فیلتر لوکیشن اکانت
-                res_spot = requests.get("https://api.xt.com/v4/wallet/balances", headers=headers_spot, timeout=5)
+                # تصحیح نام هدرهای هماهنگ با سرور اصلی
+                headers_spot = {
+                    "xt-validate-key": st.session_state['xt_key'],
+                    "xt-validate-timestamp": ts_spot,
+                    "xt-validate-signature": sig_spot
+                }
+                
+                res_spot = requests.get(f"https://api.xt.com{path_spot}", headers=headers_spot, timeout=5)
                 
                 if res_spot.status_code != 200:
                     st.error(f"⚠️ وضعیت پاسخ بخش اسپات (کد {res_spot.status_code}): {res_spot.text}")
@@ -147,7 +154,7 @@ elif view == 'bal_total':
             st.markdown(html_bal, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# بقیه منوها بدون تغییر برای پایداری پلتفرم حفظ شده‌اند...
+# سایر نماها برای پایداری پلتفرم حفظ شده‌اند...
 elif view == 'bal_part':
     st.markdown("<div class='crypto-card-center'><h2 style='text-align: center; color: #F3BA2F; font-weight: 900;'>💵 موجودی جزئی کیف پول‌ها</h2><table class='custom-table'><tr><th>نام ارز دیجیتال</th><th>مقدار موجودی واقعی</th><th>موقعیت نگهداری دارایی</th></tr><tr><td><b>USDT</b></td><td>در حال استعلام...</td><td>حساب صرافی</td></tr></table></div>", unsafe_allow_html=True)
 elif view in ['sig_spot', 'sig_futures']:
