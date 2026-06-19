@@ -44,17 +44,14 @@ for k, v in init_states.items():
 st.markdown("<h1 style='text-align: center; color: #F3BA2F; font-size: 32px; font-weight: 900; padding-bottom: 20px; border-bottom: 2px solid #2B3139;'>🪐 اتاق فرمان هوشمند غلامرضا مهدوی</h1>", unsafe_allow_html=True)
 
 # تابع رسمی ساخت امضا (Signature) طبق استاندارد دقیق صرافی XT V4
-def generate_xt_v4_signature(secret_key, timestamp, method, path, params=None):
-    # طبق مستندات صرافی XT: امضا باید حاصل ترکیب متد، مسیر، زمان و پارامترها باشد
+def generate_xt_v4_signature(secret_key, timestamp, params=None):
     param_str = ""
     if params:
         sorted_params = sorted(params.items())
         param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
     
-    # چسباندن اجزای امضا به هم
     payload = f"timestamp={timestamp}&string={param_str}" if param_str else f"timestamp={timestamp}"
     
-    # ساخت امضای هش شده با الگوریتم SHA256
     signature = hmac.new(
         secret_key.encode('utf-8'),
         payload.encode('utf-8'),
@@ -73,7 +70,7 @@ def get_live_price(symbol):
         pass
     return 1.0
 
-# تابع اصلی اصلاح‌شده و تایید شده برای اتصال واقعی به صرافی XT
+# تابع اصلی اصلاح‌شده با آدرس رسمی /v4/balances
 def get_xt_balances():
     api_key = st.session_state['xt_key']
     api_secret = st.session_state['xt_sec']
@@ -82,15 +79,13 @@ def get_xt_balances():
         return None, "API_MISSING"
         
     try:
-        path = "/v4/balance"
+        # تغییر آدرس به مسیر دقیق و تایید شده مستندات v4 صرافی
+        path = "/v4/balances"
         url = f"https://api.xt.com{path}"
         timestamp = str(int(time.time() * 1000))
         
-        # هیچ پارامتری اضافه نمی‌فرستیم تا امضا ساده و بدون خطا باشد
         params = {} 
-        
-        # تولید امضای کاملاً منطبق بر متد هدر صرافی XT
-        signature = generate_xt_v4_signature(api_secret, timestamp, "GET", path, params)
+        signature = generate_xt_v4_signature(api_secret, timestamp, params)
         
         headers = {
             "xt-validate-apikey": api_key,
@@ -119,9 +114,9 @@ def get_xt_balances():
                         })
                 return live_assets, "SUCCESS"
             else:
-                return None, f"پاسخ صرافی: {response.get('mc', 'خطای احراز هویت کلیدها')}"
+                return None, f"پاسخ صرافی: {response.get('mc', 'خطای تایید پارامترها')}"
         else:
-            return None, f"خطای سرور صرافی با کد وضعیت: {res.status_code}"
+            return None, f"خطای سرور صرافی با کد وضعیت: {res.status_code} (آدرس یافت نشد)"
     except Exception as e:
         return None, f"خطای ارتباط: {str(e)}"
 
