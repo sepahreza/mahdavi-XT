@@ -4,8 +4,6 @@ import requests
 import time
 import hmac
 import hashlib
-from datetime import datetime
-import pytz
 
 # تنظیمات اصلی صفحه
 st.set_page_config(page_title="اتاق فرمان غلامرضا مهدوی", layout="wide")
@@ -22,13 +20,6 @@ st.markdown("""
     .sidebar-title-live { text-align: center !important; color: #F3BA2F !important; font-weight: 900 !important; font-size: 16px !important; margin-top: 25px !important; margin-bottom: 15px !important; padding: 6px; background-color: #1F2226; border-radius: 6px; width: 100%; }
     .sidebar-title-settings { text-align: center !important; color: #848E9C !important; font-weight: bold !important; font-size: 14px !important; margin-top: 5px !important; margin-bottom: 10px !important; padding: 4px; background-color: #191B1F; border-radius: 6px; width: 100%; }
     [data-testid="stSidebar"] .stButton > button { width: 100%; border-radius: 8px; font-weight: bold; height: 38px; margin-top: 4px !important; margin-bottom: 4px !important; border: none; cursor: pointer; font-size: 14px !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(1) > button { background: #2B3139 !important; color: #F3BA2F !important; border: 1px solid #F3BA2F !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(2) > button { background: #2B3139 !important; color: #F3BA2F !important; border: 1px solid #F3BA2F !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(3) > button { background: linear-gradient(135deg, #02C076 0%, #01A666 100%) !important; color: white !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(4) > button { background: linear-gradient(135deg, #CD2026 0%, #A11318 100%) !important; color: white !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(5) > button { background: linear-gradient(135deg, #1F77B4 0%, #115588 100%) !important; color: white !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(6) > button { background: linear-gradient(135deg, #555555 0%, #333333 100%) !important; color: white !important; }
-    div[data-testid="stSidebar"] div.stButton:nth-of-type(7) > button { background: #FF9900 !important; color: #0B0E11 !important; height: 40px !important; }
     table.custom-table { width:100% !important; border-collapse: collapse !important; margin-top:15px !important; background:#161A1E !important; border-radius:12px !important; overflow:hidden !important; border: 1px solid #2B3139 !important; }
     table.custom-table th { background-color: #1F2226 !important; color: #F3BA2F !important; text-align: center !important; padding: 15px !important; font-size: 17px !important; font-weight: bold !important; border: 1px solid #2B3139 !important; }
     table.custom-table td { padding: 14px !important; border: 1px solid #2B3139 !important; text-align: center !important; font-size: 16px !important; font-weight: bold !important; color: #EAECEF !important; }
@@ -37,7 +28,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # پایدارسازی وضعیت سیستم
-init_states = {'gemini': '', 'xt_key': '', 'xt_sec': '', 'current_view': 'home', 'persian_cmd': '', 'exec_confirm': False, 'scan_triggered': False}
+init_states = {'gemini': '', 'xt_key': '', 'xt_sec': '', 'current_view': 'home', 'persian_cmd': ''}
 for k, v in init_states.items():
     if k not in st.session_state: st.session_state[k] = v
 
@@ -51,13 +42,7 @@ def generate_xt_v4_signature(secret_key, timestamp, params=None):
         param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
     
     payload = f"timestamp={timestamp}&string={param_str}" if param_str else f"timestamp={timestamp}"
-    
-    signature = hmac.new(
-        secret_key.encode('utf-8'),
-        payload.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    return signature
+    return hmac.new(secret_key.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()
 
 # تابع دریافت نرخ زنده برای تبدیل دارایی‌ها به تتر
 def get_live_price(symbol):
@@ -70,7 +55,7 @@ def get_live_price(symbol):
         pass
     return 1.0
 
-# تابع اصلی اصلاح‌شده با آدرس رسمی /v4/balances
+# تابع هوشمند چندمسیره برای یافتن قطعی آدرس بالانس حساب
 def get_xt_balances():
     api_key = st.session_state['xt_key']
     api_secret = st.session_state['xt_sec']
@@ -78,47 +63,51 @@ def get_xt_balances():
     if not api_key or not api_secret:
         return None, "API_MISSING"
         
-    try:
-        # تغییر آدرس به مسیر دقیق و تایید شده مستندات v4 صرافی
-        path = "/v4/balances"
-        url = f"https://api.xt.com{path}"
-        timestamp = str(int(time.time() * 1000))
-        
-        params = {} 
-        signature = generate_xt_v4_signature(api_secret, timestamp, params)
-        
-        headers = {
-            "xt-validate-apikey": api_key,
-            "xt-validate-timestamp": timestamp,
-            "xt-validate-signature": signature,
-            "Content-Type": "application/json"
-        }
-        
-        res = requests.get(url, headers=headers, timeout=6)
-        
-        if res.status_code == 200:
-            response = res.json()
-            if response.get('rc') == 0 and 'result' in response:
-                balances = response['result'].get('assets', [])
-                live_assets = []
-                for asset in balances:
-                    qty = float(asset.get('availableAmount', 0.0)) + float(asset.get('freezeAmount', 0.0))
-                    if qty > 0:
-                        coin = asset.get('currency', '').upper()
-                        price = get_live_price(coin) if coin != "USDT" else 1.0
-                        live_assets.append({
-                            "currency": coin,
-                            "type": "🟢 حساب اسپات (Spot)",
-                            "balance": qty,
-                            "value_usdt": qty * price
-                        })
-                return live_assets, "SUCCESS"
-            else:
-                return None, f"پاسخ صرافی: {response.get('mc', 'خطای تایید پارامترها')}"
-        else:
-            return None, f"خطای سرور صرافی با کد وضعیت: {res.status_code} (آدرس یافت نشد)"
-    except Exception as e:
-        return None, f"خطای ارتباط: {str(e)}"
+    # تست مسیرهای مختلف رسمی صرافی XT v4 برای عبور از خطای 404
+    possible_paths = ["/v4/assets", "/v4/wallet/funds", "/v4/balance"]
+    last_status = 404
+    
+    for path in possible_paths:
+        try:
+            url = f"https://api.xt.com{path}"
+            timestamp = str(int(time.time() * 1000))
+            
+            params = {} 
+            signature = generate_xt_v4_signature(api_secret, timestamp, params)
+            
+            headers = {
+                "xt-validate-apikey": api_key,
+                "xt-validate-timestamp": timestamp,
+                "xt-validate-signature": signature,
+                "Content-Type": "application/json"
+            }
+            
+            res = requests.get(url, headers=headers, timeout=5)
+            last_status = res.status_code
+            
+            if res.status_code == 200:
+                response = res.json()
+                if response.get('rc') == 0 and 'result' in response:
+                    # صرافی داده‌ها را در آرایه‌های مختلف برمی‌گرداند، بسته به نوع اندپوینت
+                    balances = response['result'] if isinstance(response['result'], list) else response['result'].get('assets', [])
+                    live_assets = []
+                    for asset in balances:
+                        # انطباق نام فیلدها در اندپوینت‌های مختلف XT
+                        qty = float(asset.get('availableAmount', asset.get('amount', asset.get('available', 0.0)))) + float(asset.get('freezeAmount', asset.get('freeze', 0.0)))
+                        if qty > 0:
+                            coin = asset.get('currency', asset.get('asset', '')).upper()
+                            price = get_live_price(coin) if coin != "USDT" else 1.0
+                            live_assets.append({
+                                "currency": coin,
+                                "type": "🟢 حساب اسپات (Spot)",
+                                "balance": qty,
+                                "value_usdt": qty * price
+                            })
+                    return live_assets, "SUCCESS"
+        except:
+            continue
+            
+    return None, f"خطای عدم یافتن اندپوینت فعال روی صرافی (کد آخرین وضعیت: {last_status}). لطفاً مطمئن شوید کلید شما دسترسی Read Account دارد."
 
 with st.sidebar:
     st.markdown("<div class='sidebar-title-settings'>🛠️ تنظیمات پلتفرم</div>", unsafe_allow_html=True)
@@ -133,16 +122,11 @@ with st.sidebar:
     st.markdown("<div class='sidebar-title-live'>🚀 منوی عملیات زنده</div>", unsafe_allow_html=True)
     if st.button("💰 مانده کلی حساب"): st.session_state['current_view'] = 'bal_total'
     if st.button("💵 مانده ارزی (جزئی)"): st.session_state['current_view'] = 'bal_part'
-    if st.button("🟢 دریافت سیگنال اسپات"): st.session_state['current_view'] = 'sig_spot'
-    if st.button("🔴 دریافت سیگنال فیوچرز"): st.session_state['current_view'] = 'sig_futures'
-    if st.button("🔍 رصد زنده بازار"): st.session_state['current_view'] = 'market_watch'
-    if st.button("📂 مدیریت پوزیشن‌های باز"): st.session_state['current_view'] = 'pos_management'
-    if st.button("✍️ دستور فارسی هوش مصنوعی"): st.session_state['current_view'] = 'persian_modal'
 
 view = st.session_state['current_view']
 
 if view == 'home':
-    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>کلیدهای API صرافی XT را وارد و ذخیره کن، سپس روی منوها کلیک کن تا موجودی زنده شما از صرافی فراخوانی شود.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='crypto-card-center'><h3>👋 سلام غلامرضا جان، خوش آمدی!</h3><p>کلیدهای API صرافی XT را ذخیره کرده و روی منوهای سایدبار کلیک کنید.</p></div>", unsafe_allow_html=True)
 
 elif view == 'bal_total':
     st.markdown("<div class='crypto-card-center'>", unsafe_allow_html=True)
@@ -223,12 +207,4 @@ elif view == 'bal_part':
         </table>
         """
         st.markdown(html_table, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-elif view == 'persian_modal':
-    st.markdown("<div class='crypto-card-center'><h2>✍️ ثبت دستورات فارسی</h2>", unsafe_allow_html=True)
-    cmd_input = st.text_area("دستور یا استراتژی معاملاتی خود را بنویسید:", value=st.session_state['persian_cmd'])
-    if st.button("💾 ثبت نهایی"):
-        st.session_state['persian_cmd'] = cmd_input
-        st.success("✅ دستور معاملاتی با موفقیت ثبت شد.")
     st.markdown("</div>", unsafe_allow_html=True)
